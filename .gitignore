@@ -1,0 +1,17 @@
+venv/
+
+.idea/
+
+__pycache__/
+
+.ipynb_checkpoints/
+
+*.pyc
+
+saved_models/
+
+node_modules/
+
+.env
+
+datasets/
