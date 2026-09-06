@@ -1,280 +1,187 @@
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+"""Profil, ocene i omiljeni recepti prijavljenog korisnika.
 
-from ..database import interactions_df
-from ..auth_database import get_connection
-from ..database import interactions_df, recipes_df
+Stari `/users/{user_id}` endpoint-i nad datasetom su namerno uklonjeni:
+korisnici iz Food.com interakcija nisu korisnici aplikacije.
+"""
 
-from .auth import get_current_user
-import pandas as pd
+from typing import Annotated
 
-router = APIRouter(
-    prefix="/users",
-    tags=["Users"]
-)
+from fastapi import APIRouter, HTTPException, Path, Query, Response, status
+from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.orm import Session
 
+from backend.app.api.deps import CurrentUser, DbSession
+from backend.app.core.config import settings
+from backend.app.db.models import Recipe, UserFavorite, UserRating
+from backend.app.schemas.recipe import RecipeCard
+from backend.app.schemas.user import RatingIn, RatingOut, UserOut, UserRatingItem
+from backend.app.services.recipes import to_card
 
-# =========================================================
-# REQUEST MODELS
-# =========================================================
+router = APIRouter(prefix="/users", tags=["users"])
 
-class RatingRequest(BaseModel):
-    recipe_id: int
-    rating: int
-
-
-# =========================================================
-# CURRENT USER
-# =========================================================
-
-@router.get("/me")
-def get_current_user_info(
-    current_user: dict = Depends(get_current_user)
-):
-    return current_user
+RecipeId = Annotated[int, Path(description="ID recepta iz dataseta")]
 
 
-# =========================================================
-# SAVE / UPDATE CURRENT USER RATING
-# =========================================================
-
-@router.post("/me/ratings")
-def save_rating(
-    data: RatingRequest,
-    current_user: dict = Depends(get_current_user)
-):
-
-    user_id = current_user["id"]
-
-    # Provera ocene
-    if data.rating < 1 or data.rating > 5:
-        raise HTTPException(
-            status_code=400,
-            detail="Rating must be between 1 and 5"
-        )
-
-    connection = get_connection()
-
-    try:
-
-        # Proveravamo da li je korisnik već ocenio recept
-        existing_rating = connection.execute(
-            """
-            SELECT id
-            FROM user_ratings
-            WHERE user_id = ?
-              AND recipe_id = ?
-            """,
-            (
-                user_id,
-                data.recipe_id
-            )
-        ).fetchone()
-
-        if existing_rating:
-            raise HTTPException(
-                status_code=400,
-                detail="You have already rated this recipe"
-            )
-
-        else:
-
-            # Ako nije -> dodajemo novu ocenu
-            connection.execute(
-                """
-                INSERT INTO user_ratings (
-                    user_id,
-                    recipe_id,
-                    rating
-                )
-                VALUES (?, ?, ?)
-                """,
-                (
-                    user_id,
-                    data.recipe_id,
-                    data.rating
-                )
-            )
-
-            message = "Rating saved successfully"
-
-        connection.commit()
-
-        return {
-            "message": message,
-            "user_id": user_id,
-            "recipe_id": data.recipe_id,
-            "rating": data.rating
-        }
-
-    finally:
-        connection.close()
+def _no_content() -> Response:
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# =========================================================
-# GET CURRENT USER RATINGS
-# =========================================================
-
-@router.get("/me/ratings")
-def get_my_ratings(
-    current_user: dict = Depends(get_current_user)
-):
-
-    user_id = current_user["id"]
-
-    connection = get_connection()
-
-    try:
-
-        ratings = connection.execute(
-            """
-            SELECT
-                recipe_id,
-                rating,
-                created_at
-            FROM user_ratings
-            WHERE user_id = ?
-            ORDER BY created_at DESC
-            """,
-            (user_id,)
-        ).fetchall()
-
-        return {
-            "user_id": user_id,
-            "ratings": [dict(rating) for rating in ratings]
-        }
-
-    finally:
-        connection.close()
-
-
-# =========================================================
-# OLD DATASET USER ENDPOINTS
-# =========================================================
-
-@router.get("/{user_id}")
-def get_user(user_id: int):
-
-    user_interactions = interactions_df[
-        interactions_df["user_id"] == user_id
-    ]
-
-    if user_interactions.empty:
-        raise HTTPException(
-            status_code=404,
-            detail=f"User {user_id} not found in interactions dataset"
-        )
-
-    return {
-        "user_id": user_id,
-        "ratings_count": len(user_interactions)
-    }
-
-
-@router.get("/{user_id}/ratings")
-def get_user_ratings(user_id: int):
-
-    user_interactions = interactions_df[
-        interactions_df["user_id"] == user_id
-    ]
-
-    if user_interactions.empty:
-        raise HTTPException(
-            status_code=404,
-            detail=f"User {user_id} not found in interactions dataset"
-        )
-
-    return {
-        "user_id": user_id,
-        "ratings": user_interactions.fillna("").to_dict(
-            orient="records"
-        )
-    }
-
-
-@router.get("/")
-def get_users(limit: int = 20):
-
-    user_ids = (
-        interactions_df["user_id"]
-        .dropna()
-        .drop_duplicates()
-        .head(limit)
-        .tolist()
+def _ratings_count(db: Session, user_id: int) -> int:
+    return (
+        db.scalar(select(func.count()).select_from(UserRating).where(UserRating.user_id == user_id))
+        or 0
     )
 
+
+def _require_recipe(db: Session, recipe_id: int) -> None:
+    if db.scalar(select(Recipe.id).where(Recipe.id == recipe_id)) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Recept {recipe_id} ne postoji.",
+        )
+
+
+@router.get("/me", response_model=UserOut, summary="Podaci o prijavljenom korisniku")
+def read_me(db: DbSession, user: CurrentUser) -> dict:
+    count = _ratings_count(db, user.id)
     return {
-        "users": user_ids
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "created_at": user.created_at,
+        "ratings_count": count,
+        "onboarding_completed": count >= settings.onboarding_min_ratings,
     }
 
-@router.get("/me/ratings")
-def get_my_ratings(
-    current_user: dict = Depends(get_current_user)
-):
 
-    user_id = current_user["id"]
+@router.get(
+    "/me/ratings",
+    response_model=list[UserRatingItem],
+    summary="Sve ocene korisnika",
+)
+def read_my_ratings(
+    db: DbSession,
+    user: CurrentUser,
+    min_rating: Annotated[int | None, Query(ge=1, le=5)] = None,
+) -> list[dict]:
+    stmt = (
+        select(UserRating, Recipe)
+        .join(Recipe, Recipe.id == UserRating.recipe_id)
+        .where(UserRating.user_id == user.id)
+    )
+    if min_rating is not None:
+        stmt = stmt.where(UserRating.rating >= min_rating)
 
-    connection = get_connection()
+    # Slike se povlace kroz Recipe.image (lazy="selectin") - jedan dodatni upit
+    # za ceo skup, bez N+1.
+    rows = db.execute(stmt.order_by(UserRating.updated_at.desc(), UserRating.recipe_id)).all()
 
-    try:
-
-        ratings = connection.execute(
-            """
-            SELECT
-                recipe_id,
-                rating,
-                created_at
-            FROM user_ratings
-            WHERE user_id = ?
-            ORDER BY created_at DESC
-            """,
-            (user_id,)
-        ).fetchall()
-
-    finally:
-        connection.close()
-
-    ratings_list = []
-
-    for rating in ratings:
-
-        recipe_id = rating["recipe_id"]
-
-        recipe = recipes_df[
-            recipes_df["id"] == recipe_id
-        ]
-
-        recipe_data = {
-            "recipe_id": recipe_id,
-            "rating": rating["rating"],
-            "created_at": rating["created_at"],
-            "name": "",
-            "minutes": "",
-            "description": ""
+    return [
+        {
+            "recipe": to_card(recipe),
+            "rating": rating.rating,
+            "created_at": rating.created_at,
+            "updated_at": rating.updated_at,
         }
+        for rating, recipe in rows
+    ]
 
-        if not recipe.empty:
 
-            recipe_row = recipe.iloc[0]
+@router.put(
+    "/me/ratings/{recipe_id}",
+    response_model=RatingOut,
+    summary="Upis ili izmena ocene",
+)
+def upsert_my_rating(
+    db: DbSession,
+    user: CurrentUser,
+    recipe_id: RecipeId,
+    payload: RatingIn,
+) -> dict:
+    _require_recipe(db, recipe_id)
 
-            recipe_data["name"] = (
-                "" if pd.isna(recipe_row["name"])
-                else recipe_row["name"]
-            )
-
-            recipe_data["minutes"] = (
-                "" if pd.isna(recipe_row["minutes"])
-                else recipe_row["minutes"]
-            )
-
-            recipe_data["description"] = (
-                "" if pd.isna(recipe_row["description"])
-                else recipe_row["description"]
-            )
-
-        ratings_list.append(recipe_data)
+    stmt = (
+        pg_insert(UserRating)
+        .values(user_id=user.id, recipe_id=recipe_id, rating=payload.rating)
+        .on_conflict_do_update(
+            index_elements=["user_id", "recipe_id"],
+            # created_at ostaje netaknut - menjaju se samo ocena i vreme izmene.
+            set_={"rating": payload.rating, "updated_at": func.now()},
+        )
+        .returning(
+            UserRating.recipe_id,
+            UserRating.rating,
+            UserRating.created_at,
+            UserRating.updated_at,
+        )
+    )
+    row = db.execute(stmt).one()
+    db.commit()
 
     return {
-        "user_id": user_id,
-        "ratings": ratings_list
+        "recipe_id": row.recipe_id,
+        "rating": row.rating,
+        "created_at": row.created_at,
+        "updated_at": row.updated_at,
     }
+
+
+@router.delete(
+    "/me/ratings/{recipe_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Brisanje ocene (idempotentno)",
+)
+def delete_my_rating(db: DbSession, user: CurrentUser, recipe_id: RecipeId) -> Response:
+    db.execute(
+        delete(UserRating).where(UserRating.user_id == user.id, UserRating.recipe_id == recipe_id)
+    )
+    db.commit()
+    return _no_content()
+
+
+@router.get(
+    "/me/favorites",
+    response_model=list[RecipeCard],
+    summary="Omiljeni recepti",
+)
+def read_my_favorites(db: DbSession, user: CurrentUser) -> list[dict]:
+    rows = db.scalars(
+        select(Recipe)
+        .join(UserFavorite, UserFavorite.recipe_id == Recipe.id)
+        .where(UserFavorite.user_id == user.id)
+        .order_by(UserFavorite.created_at.desc(), Recipe.id)
+    ).all()
+    return [to_card(recipe) for recipe in rows]
+
+
+@router.put(
+    "/me/favorites/{recipe_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Dodavanje u omiljene (idempotentno)",
+)
+def add_my_favorite(db: DbSession, user: CurrentUser, recipe_id: RecipeId) -> Response:
+    _require_recipe(db, recipe_id)
+
+    db.execute(
+        pg_insert(UserFavorite)
+        .values(user_id=user.id, recipe_id=recipe_id)
+        .on_conflict_do_nothing(index_elements=["user_id", "recipe_id"])
+    )
+    db.commit()
+    return _no_content()
+
+
+@router.delete(
+    "/me/favorites/{recipe_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Uklanjanje iz omiljenih (idempotentno)",
+)
+def remove_my_favorite(db: DbSession, user: CurrentUser, recipe_id: RecipeId) -> Response:
+    db.execute(
+        delete(UserFavorite).where(
+            UserFavorite.user_id == user.id, UserFavorite.recipe_id == recipe_id
+        )
+    )
+    db.commit()
+    return _no_content()

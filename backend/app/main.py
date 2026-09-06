@@ -1,4 +1,4 @@
-"""FastAPI aplikacija - minimalni bootstrap nad PostgreSQL bazom."""
+"""FastAPI aplikacija - bootstrap nad PostgreSQL bazom."""
 
 import logging
 from contextlib import asynccontextmanager
@@ -7,22 +7,42 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.core.config import settings
-from backend.app.db.session import verify_database
-
-# TODO: Sledeci workstream pise nove rutere nad SQLAlchemy slojem i
-# registruje ih ovde. Stari ruteri (auth, users, recipes, recommendations)
-# jos uvek importuju obrisane database.py / auth_database.py, pa bi srusili
-# start aplikacije - zato su namerno iskljuceni:
-#
-# from backend.app.routers.auth import router as auth_router
-# from backend.app.routers.users import router as users_router
-# from backend.app.routers.recipes import router as recipes_router
-# from backend.app.routers.recommendations import router as recommendations_router
+from backend.app.db.session import SessionLocal, verify_database
+from backend.app.routers.auth import router as auth_router
+from backend.app.routers.catalog import router as catalog_router
+from backend.app.routers.recipes import router as recipes_router
+from backend.app.routers.recommendations import router as recommendations_router
+from backend.app.routers.users import router as users_router
+from backend.app.services.recommender import (
+    MODEL_MULT_VAE,
+    MODEL_POPULARITY,
+    build_onboarding_cards,
+    missing_onboarding_tags,
+)
 
 logger = logging.getLogger(__name__)
 
-MODEL_MULT_VAE = "mult_vae"
-MODEL_POPULARITY = "popularity"
+
+def _warm_onboarding_cache(app: FastAPI) -> None:
+    """Priprema onboarding kartice jednom, na startu.
+
+    Prazan rezultat se NE kesira (ostaje None) - baza pre ETL-a je prazna,
+    pa ruter kasnije pokusava ponovo.
+    """
+    try:
+        with SessionLocal() as db:
+            cards = build_onboarding_cards(db, app.state.recommender)
+            missing = missing_onboarding_tags(db)
+    except Exception:  # onboarding kes ne sme da obori start aplikacije
+        logger.exception("Onboarding kes nije izgradjen; bice pokusan pri prvom zahtevu.")
+        app.state.onboarding_cards = None
+        return
+
+    if missing:
+        logger.warning("Onboarding tagovi kojih nema u tabeli 'tags': %s", ", ".join(missing))
+
+    app.state.onboarding_cards = cards or None
+    logger.info("Onboarding kes: %d recepata.", len(cards))
 
 
 @asynccontextmanager
@@ -42,6 +62,9 @@ async def lifespan(app: FastAPI):
         app.state.recommender = None
         logger.warning("Model nije ucitan (%s). Aplikacija radi sa popularity fallback-om.", exc)
 
+    # 3) Onboarding lista je ista za sve posetioce - racuna se jednom.
+    _warm_onboarding_cache(app)
+
     yield
 
 
@@ -60,7 +83,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# TODO: ovde idu app.include_router(...) pozivi nakon prepisivanja rutera.
+app.include_router(auth_router)
+app.include_router(users_router)
+app.include_router(recipes_router)
+app.include_router(catalog_router)
+app.include_router(recommendations_router)
 
 
 def _active_model(app: FastAPI) -> str:

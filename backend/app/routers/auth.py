@@ -1,282 +1,96 @@
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
-from jose import jwt
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-import hashlib
+"""Registracija i prijava."""
 
-from ..auth_database import get_connection
+from typing import Annotated
 
-import sqlite3
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
-router = APIRouter(
-    prefix="/auth",
-    tags=["Authentication"]
+from backend.app.api.deps import DbSession
+from backend.app.core.security import (
+    create_access_token,
+    credentials_error,
+    hash_password,
+    verify_password,
 )
+from backend.app.db.models import User
+from backend.app.schemas.auth import RegisterRequest, RegisterResponse, TokenResponse
+
+router = APIRouter(prefix="/auth", tags=["auth"])
+
+# Hes bez ijedne odgovarajuce lozinke. Sluzi da provera traje isto i kada
+# korisnik ne postoji, pa se iz vremena odgovora ne moze zakljuciti
+# koja korisnicka imena su zauzeta.
+_DUMMY_HASH = "$2b$12$C6UzMDM.H6dfI/f/IKcEeO1jHxvVYYVGYPQ0RtQhb5ZSbC7VBTfjK"
 
 
-SECRET_KEY = "food-recommendation-system-secret-key"
-ALGORITHM = "HS256"
+def _duplicate_field(error: IntegrityError) -> str:
+    """Iz Postgres greske izvlaci koje je ogranicenje prekrseno."""
+    constraint = getattr(getattr(error.orig, "diag", None), "constraint_name", "") or ""
+    return "email" if "email" in constraint.lower() else "username"
 
-oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl="/auth/login"
+
+@router.post(
+    "/register",
+    response_model=RegisterResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Registracija korisnika",
 )
+def register(payload: RegisterRequest, db: DbSession) -> dict:
+    """Kreira korisnika i odmah vraca token.
 
-
-class RatingRequest(BaseModel):
-    recipe_id: int
-    rating: int
-
-
-class RegisterRequest(BaseModel):
-    username: str
-    email: str
-    password: str
-    ratings: list[RatingRequest] = []
-
-
-@router.post("/register")
-def register_user(data: RegisterRequest):
-
-    username = data.username.strip()
-    email = data.email.strip().lower()
-    password = data.password
-
-    # =========================
-    # VALIDATION
-    # =========================
-
-    if len(username) < 3:
-        raise HTTPException(
-            status_code=400,
-            detail="Username must contain at least 3 characters"
-        )
-
-    if len(password) < 6:
-        raise HTTPException(
-            status_code=400,
-            detail="Password must contain at least 6 characters"
-        )
-
-    if len(data.ratings) < 5:
-        raise HTTPException(
-            status_code=400,
-            detail="You must rate at least 5 recipes"
-        )
-
-    for rating in data.ratings:
-
-        if rating.rating < 1 or rating.rating > 5:
-            raise HTTPException(
-                status_code=400,
-                detail="Rating must be between 1 and 5"
-            )
-
-    # Provera da se isti recept nije ocenio dva puta
-    recipe_ids = [
-        rating.recipe_id
-        for rating in data.ratings
-    ]
-
-    if len(recipe_ids) != len(set(recipe_ids)):
-        raise HTTPException(
-            status_code=400,
-            detail="You cannot rate the same recipe twice"
-        )
-
-    # =========================
-    # PASSWORD HASH
-    # =========================
-
-    password_hash = hashlib.sha256(
-        password.encode("utf-8")
-    ).hexdigest()
-
-    connection = get_connection()
-
-    try:
-
-        # =========================
-        # CREATE USER
-        # =========================
-
-        cursor = connection.execute(
-            """
-            INSERT INTO users (
-                username,
-                email,
-                password_hash
-            )
-            VALUES (?, ?, ?)
-            """,
-            (
-                username,
-                email,
-                password_hash
-            )
-        )
-
-        user_id = cursor.lastrowid
-
-        # =========================
-        # SAVE INITIAL RATINGS
-        # =========================
-
-        for rating in data.ratings:
-
-            connection.execute(
-                """
-                INSERT INTO user_ratings (
-                    user_id,
-                    recipe_id,
-                    rating
-                )
-                VALUES (?, ?, ?)
-                """,
-                (
-                    user_id,
-                    rating.recipe_id,
-                    rating.rating
-                )
-            )
-
-        connection.commit()
-
-        # =========================
-        # RETURN USER
-        # =========================
-
-        user = connection.execute(
-            """
-            SELECT id, username, email, created_at
-            FROM users
-            WHERE id = ?
-            """,
-            (user_id,)
-        ).fetchone()
-
-        return {
-            "message": "User registered successfully",
-            "user": dict(user),
-            "ratings_saved": len(data.ratings)
-        }
-
-    except sqlite3.IntegrityError as e:
-
-        connection.rollback()
-
-        if "UNIQUE constraint failed" in str(e):
-            raise HTTPException(
-                status_code=400,
-                detail="Username or email already exists"
-            )
-
-        raise
-
-    finally:
-        connection.close()
-
-
-@router.post("/login")
-def login_user(
-    form_data: OAuth2PasswordRequestForm = Depends()
-):
-
-    username = form_data.username.strip()
-    password = form_data.password
-
-    password_hash = hashlib.sha256(
-        password.encode("utf-8")
-    ).hexdigest()
-
-    connection = get_connection()
-
-    try:
-
-        user = connection.execute(
-            """
-            SELECT id, username, email, password_hash
-            FROM users
-            WHERE username = ?
-            """,
-            (username,)
-        ).fetchone()
-
-    finally:
-        connection.close()
-
-    if user is None:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid username or password"
-        )
-
-    if user["password_hash"] != password_hash:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid username or password"
-        )
-
-    token = jwt.encode(
-        {
-            "sub": str(user["id"]),
-            "username": user["username"]
-        },
-        SECRET_KEY,
-        algorithm=ALGORITHM
+    Token je potreban jer frontend odmah posle registracije salje onboarding
+    ocene - bez njega bi morao da radi jos jednu prijavu.
+    """
+    user = User(
+        username=payload.username,
+        # Email se u bazi uvek cuva malim slovima.
+        email=str(payload.email).strip().lower(),
+        password_hash=hash_password(payload.password),
     )
+    db.add(user)
+
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        field = _duplicate_field(exc)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Email je vec registrovan."
+                if field == "email"
+                else "Korisnicko ime je vec zauzeto."
+            ),
+        ) from exc
+
+    db.refresh(user)
 
     return {
-        "access_token": token,
-        "token_type": "bearer"
+        "access_token": create_access_token(user.id),
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "created_at": user.created_at,
+            "ratings_count": 0,
+            "onboarding_completed": False,
+        },
     }
 
 
-def get_current_user(
-    token: str = Depends(oauth2_scheme)
-):
+@router.post("/login", response_model=TokenResponse, summary="Prijava (OAuth2 form)")
+def login(
+    db: DbSession,
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+) -> dict:
+    username = form_data.username.strip()
+    user = db.scalar(select(User).where(User.username == username))
 
-    try:
+    password_hash = user.password_hash if user is not None else _DUMMY_HASH
+    if not verify_password(form_data.password, password_hash) or user is None:
+        raise credentials_error("Neispravno korisnicko ime ili lozinka.")
 
-        payload = jwt.decode(
-            token,
-            SECRET_KEY,
-            algorithms=[ALGORITHM]
-        )
-
-        user_id = payload.get("sub")
-
-        if user_id is None:
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid token"
-            )
-
-    except Exception:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired token"
-        )
-
-    connection = get_connection()
-
-    try:
-
-        user = connection.execute(
-            """
-            SELECT id, username, email, created_at
-            FROM users
-            WHERE id = ?
-            """,
-            (int(user_id),)
-        ).fetchone()
-
-    finally:
-        connection.close()
-
-    if user is None:
-        raise HTTPException(
-            status_code=401,
-            detail="User not found"
-        )
-
-    return dict(user)
+    return {"access_token": create_access_token(user.id), "token_type": "bearer"}
