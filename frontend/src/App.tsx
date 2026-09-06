@@ -1,17 +1,23 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
-import ProtectedRoute from './ProtectedRoute'
-import Home from './pages/Home'
-import Login from './pages/Login'
-import Profile from './pages/Profile'
-import RateRecipes from './pages/RateRecipes'
-import RecipeDetails from './pages/RecipeDetails'
-import Register from './pages/Register'
+import {
+  RequireOnboarded,
+  RequireOnboarding,
+} from '@/components/auth/OnboardingGuard'
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
+import { PublicOnlyRoute } from '@/components/auth/PublicOnlyRoute'
+import { AppShell } from '@/components/layout/AppShell'
+import { hasToken } from '@/lib/auth'
+import Home from '@/pages/Home'
+import Login from '@/pages/Login'
+import Onboarding from '@/pages/Onboarding'
+import Profile from '@/pages/Profile'
+import RecipeDetails from '@/pages/RecipeDetails'
+import Register from '@/pages/Register'
 
+/** Entry point: signed in goes to the recommendations, signed out to login. */
 function StartPage() {
-  const token = localStorage.getItem('access_token')
-
-  return <Navigate to={token ? '/home' : '/login'} replace />
+  return <Navigate to={hasToken() ? '/home' : '/login'} replace />
 }
 
 function App() {
@@ -20,34 +26,24 @@ function App() {
       <Routes>
         <Route path="/" element={<StartPage />} />
 
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/rate-recipes" element={<RateRecipes />} />
+        <Route element={<PublicOnlyRoute />}>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+        </Route>
 
-        <Route
-          path="/home"
-          element={
-            <ProtectedRoute>
-              <Home />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/recipes/:recipeId"
-          element={
-            <ProtectedRoute>
-              <RecipeDetails />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/profile"
-          element={
-            <ProtectedRoute>
-              <Profile />
-            </ProtectedRoute>
-          }
-        />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<RequireOnboarding />}>
+            <Route path="/onboarding" element={<Onboarding />} />
+          </Route>
+
+          <Route element={<RequireOnboarded />}>
+            <Route element={<AppShell />}>
+              <Route path="/home" element={<Home />} />
+              <Route path="/recipes/:recipeId" element={<RecipeDetails />} />
+              <Route path="/profile" element={<Profile />} />
+            </Route>
+          </Route>
+        </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
