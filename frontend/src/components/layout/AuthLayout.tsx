@@ -1,4 +1,4 @@
-import { ChefHat } from 'lucide-react'
+import { CakeSlice, ChefHat, Fish, Salad, Soup, Wheat } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 const STEPS = [
@@ -6,6 +6,9 @@ const STEPS = [
   'The model builds your taste profile',
   'Recommendations sharpen with every rating',
 ] as const
+
+/** Purely decorative: the five tiles that close the brand panel. */
+const TILES = [Soup, Fish, Wheat, Salad, CakeSlice] as const
 
 interface AuthLayoutProps {
   children: ReactNode
@@ -61,9 +64,16 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
         <div className="grow" />
 
-        <p className="text-xs leading-relaxed text-white/60">
-          Recipe data from the Food.com dataset on Kaggle.
-        </p>
+        <div className="flex gap-3.5" aria-hidden>
+          {TILES.map((Tile, index) => (
+            <span
+              key={index}
+              className="flex size-[92px] items-center justify-center rounded-[20px] bg-white/[0.13]"
+            >
+              <Tile className="size-10 text-white/75" strokeWidth={1.4} />
+            </span>
+          ))}
+        </div>
       </aside>
 
       <main className="flex flex-1 items-center justify-center px-4 py-12 sm:px-8">

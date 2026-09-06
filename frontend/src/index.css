@@ -17,7 +17,13 @@
   --color-match: var(--match);
   --color-match-foreground: var(--match-foreground);
   --color-star: var(--star);
+  --color-star-empty: var(--star-empty);
   --color-lime: var(--lime);
+
+  /* Two greys below `foreground` that the mockups use for body copy and
+     captions: text-ink-soft for prose, text-ink-faint for footnotes. */
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
 
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -93,7 +99,11 @@
   --match: #e8801f;
   --match-foreground: #ffffff;
   --star: #ff9838;
+  --star-empty: #e1e5ea;
   --lime: #5ebd21;
+
+  --ink-soft: #5b6675;
+  --ink-faint: #99a3b2;
 
   --chart-1: #3fa34d;
   --chart-2: #5ebd21;

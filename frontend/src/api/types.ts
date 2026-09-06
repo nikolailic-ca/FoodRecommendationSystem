@@ -6,43 +6,48 @@
  * than as a runtime surprise.
  */
 
+/**
+ * Nullability mirrors `backend/app/schemas/recipe.py` exactly: the Food.com
+ * export leaves plenty of columns empty, so everything the ETL cannot
+ * guarantee arrives as `null` and has to be rendered as such.
+ */
 export interface RecipeCard {
   id: number
   name: string
-  minutes: number
-  n_ingredients: number
-  n_steps: number
-  calories: number
+  minutes: number | null
+  n_ingredients: number | null
+  n_steps: number | null
+  calories: number | null
   rating_count: number
-  avg_rating: number
+  avg_rating: number | null
   image_url: string | null
   tags: string[]
   description_short: string
 }
 
 export interface Nutrition {
-  calories: number
-  total_fat_pdv: number
-  sugar_pdv: number
-  sodium_pdv: number
-  protein_pdv: number
-  saturated_fat_pdv: number
-  carbohydrates_pdv: number
+  calories: number | null
+  total_fat_pdv: number | null
+  sugar_pdv: number | null
+  sodium_pdv: number | null
+  protein_pdv: number | null
+  saturated_fat_pdv: number | null
+  carbohydrates_pdv: number | null
 }
 
 export interface RecipeImage {
   url: string
-  photographer: string
-  photographer_url: string
-  source_url: string
+  photographer: string | null
+  photographer_url: string | null
+  source_url: string | null
 }
 
 export interface RecipeDetail extends RecipeCard {
-  description: string
+  description: string | null
   steps: string[]
   ingredients: string[]
   nutrition: Nutrition
-  submitted: string
+  submitted: string | null
   image: RecipeImage | null
   user_rating: number | null
   is_favorite: boolean

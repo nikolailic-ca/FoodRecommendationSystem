@@ -99,6 +99,27 @@ export function serializeFilters(
   return params
 }
 
+/** The rungs offered by the max-cooking-time select, in minutes. */
+export const MAX_MINUTES_OPTIONS = [15, 30, 45, 60, 120] as const
+
+/** `30` -> `"Under 30 min"`, `120` -> `"Under 2 h"`. */
+export function maxMinutesLabel(minutes: number): string {
+  if (minutes < 60) {
+    return `Under ${minutes} min`
+  }
+
+  const hours = minutes / 60
+
+  return `Under ${hours} h`
+}
+
+/** `/home?tags=one-pot` — the target of every clickable tag chip. */
+export function tagFilterHref(tag: string): string {
+  const params = serializeFilters({ ...EMPTY_FILTERS, tags: [tag] })
+
+  return `/home?${params.toString()}`
+}
+
 export function hasActiveFilters(filters: RecommendationFilters): boolean {
   const normalized = normalizeFilters(filters)
 
