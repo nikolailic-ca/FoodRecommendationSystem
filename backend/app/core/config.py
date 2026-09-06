@@ -67,6 +67,16 @@ class Settings(BaseSettings):
         except ValueError as exc:  # neparsabilan port
             raise ValueError(f"DATABASE_URL ima neispravan port: {exc}") from exc
 
+        if port is None:
+            # libpq bi bez porta pao na svoj default, a to je bas 5432 -
+            # AWS SSM tunel ka produkcijskoj bazi. Trazimo eksplicitan port.
+            raise ValueError(
+                "DATABASE_URL nema eksplicitan port. Bez njega bi drajver koristio "
+                "podrazumevanih 5432, sto je AWS SSM tunel ka PRODUKCIJSKOJ RDS bazi "
+                "drugog projekta. Navedi port izricito, npr. "
+                "postgresql+psycopg://foodrec:...@127.0.0.1:15432/foodrec"
+            )
+
         if port in FORBIDDEN_PORTS:
             raise ValueError(
                 f"DATABASE_URL koristi zabranjen port {port}. "
