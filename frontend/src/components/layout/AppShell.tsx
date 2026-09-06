@@ -1,9 +1,21 @@
-import { Outlet } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Outlet, useLocation, useNavigationType } from 'react-router-dom'
 
 import { AppHeader } from './AppHeader'
 
 /** The frame every signed-in page renders inside. */
 export function AppShell() {
+  const { pathname } = useLocation()
+  const navigationType = useNavigationType()
+
+  // A new page starts at the top; going back keeps whatever the browser
+  // restored, so returning from a recipe lands where the grid was left.
+  useEffect(() => {
+    if (navigationType !== 'POP') {
+      window.scrollTo(0, 0)
+    }
+  }, [pathname, navigationType])
+
   return (
     <div className="min-h-dvh bg-background">
       <AppHeader />

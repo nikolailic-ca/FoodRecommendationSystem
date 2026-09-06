@@ -17,8 +17,23 @@ import { useToggleFavorite } from '@/hooks/useFavorites'
 import { useDeleteRating, useRateRecipe } from '@/hooks/useRatings'
 import { useRecipe } from '@/hooks/useRecipe'
 import { useSimilar } from '@/hooks/useSimilar'
+import { cn } from '@/lib/utils'
 
 const exactCount = new Intl.NumberFormat('en-GB')
+
+/**
+ * The recipe page shows every tag, but Food.com recipes routinely carry thirty
+ * of them; beyond this many the chips become a wall that buries the buttons
+ * under it, so the rest go behind a toggle.
+ */
+const COLLAPSED_TAGS = 12
+
+/**
+ * Some Food.com descriptions are a paragraph, others are somebody's entire
+ * review. Past this many characters the text is clamped so it cannot push the
+ * buttons and the rating box off the screen.
+ */
+const LONG_DESCRIPTION = 320
 
 function parseRecipeId(value: string | undefined): number | null {
   if (value === undefined) {
@@ -48,6 +63,8 @@ function RecipeDetails() {
   const toggleFavorite = useToggleFavorite()
 
   const [cooking, setCooking] = useState(false)
+  const [allTags, setAllTags] = useState(false)
+  const [fullDescription, setFullDescription] = useState(false)
 
   if (id === null) {
     return (
@@ -103,9 +120,28 @@ function RecipeDetails() {
           </h1>
 
           {recipe.description ? (
-            <p className="mt-4 text-base leading-[1.6] text-pretty text-ink-soft">
-              {recipe.description}
-            </p>
+            <div className="mt-4">
+              <p
+                className={cn(
+                  'text-base leading-[1.6] text-pretty text-ink-soft',
+                  !fullDescription && 'line-clamp-5',
+                )}
+              >
+                {recipe.description}
+              </p>
+
+              {recipe.description.length > LONG_DESCRIPTION ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFullDescription((previous) => !previous)
+                  }}
+                  className="mt-1.5 cursor-pointer rounded-md text-[13px] font-bold text-primary transition-colors outline-none hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  {fullDescription ? 'Show less' : 'Read more'}
+                </button>
+              ) : null}
+            </div>
           ) : null}
 
           <RecipeMeta
@@ -139,10 +175,27 @@ function RecipeDetails() {
           </div>
 
           {recipe.tags.length > 0 ? (
-            <div className="mt-[22px] flex flex-wrap gap-2">
-              {recipe.tags.map((tag) => (
+            <div className="mt-[22px] flex flex-wrap items-center gap-2">
+              {(allTags
+                ? recipe.tags
+                : recipe.tags.slice(0, COLLAPSED_TAGS)
+              ).map((tag) => (
                 <TagChip key={tag} tag={tag} size="md" interactive />
               ))}
+
+              {recipe.tags.length > COLLAPSED_TAGS ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAllTags((previous) => !previous)
+                  }}
+                  className="cursor-pointer rounded-full px-2 py-1.5 text-[13px] font-bold text-primary transition-colors outline-none hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  {allTags
+                    ? 'Show fewer'
+                    : `+${recipe.tags.length - COLLAPSED_TAGS} more`}
+                </button>
+              ) : null}
             </div>
           ) : null}
 

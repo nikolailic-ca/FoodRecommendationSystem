@@ -42,8 +42,19 @@ function Register() {
     },
   })
 
-  const passwordsMatch =
-    confirmation.length > 0 && confirmation === password
+  const passwordsMatch = confirmation.length > 0 && confirmation === password
+
+  /**
+   * Editing anything clears the last complaint: leaving "the passwords do not
+   * match" on screen while the user is fixing exactly that reads as broken.
+   */
+  function edit(setter: (value: string) => void) {
+    return (value: string) => {
+      setLocalError(null)
+      mutation.reset()
+      setter(value)
+    }
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -88,7 +99,7 @@ function Register() {
           required
           value={username}
           onChange={(event) => {
-            setUsername(event.target.value)
+            edit(setUsername)(event.target.value)
           }}
         />
 
@@ -102,7 +113,7 @@ function Register() {
           required
           value={email}
           onChange={(event) => {
-            setEmail(event.target.value)
+            edit(setEmail)(event.target.value)
           }}
         />
 
@@ -118,7 +129,7 @@ function Register() {
           hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}
           value={password}
           onChange={(event) => {
-            setPassword(event.target.value)
+            edit(setPassword)(event.target.value)
           }}
         />
 
@@ -133,7 +144,7 @@ function Register() {
           required
           value={confirmation}
           onChange={(event) => {
-            setConfirmation(event.target.value)
+            edit(setConfirmation)(event.target.value)
           }}
         />
 

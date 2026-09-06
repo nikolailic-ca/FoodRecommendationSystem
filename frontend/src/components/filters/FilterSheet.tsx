@@ -41,7 +41,7 @@ function FilterSheetBody({ value, onApply, onClose }: FilterSheetBodyProps) {
         <FilterFields value={draft} onChange={setDraft} layout="sheet" />
       </div>
 
-      <SheetFooter className="flex-row gap-3 border-t border-border px-5 py-4">
+      <SheetFooter className="shrink-0 flex-row gap-3 border-t border-border px-5 py-4">
         <Button
           variant="ghost"
           className="h-12 flex-1 rounded-xl text-sm font-semibold text-muted-foreground"

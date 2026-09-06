@@ -278,7 +278,7 @@ function Profile() {
           <h1 className="truncate text-3xl leading-tight font-extrabold tracking-[-0.035em]">
             {me.data.username}
           </h1>
-          <p className="mt-1 truncate text-sm font-medium text-muted-foreground">
+          <p className="mt-1 text-sm font-medium break-words text-muted-foreground">
             {me.data.email} · Member since {formatDate(me.data.created_at)}
           </p>
 
