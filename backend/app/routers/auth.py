@@ -91,6 +91,6 @@ def login(
 
     password_hash = user.password_hash if user is not None else _DUMMY_HASH
     if not verify_password(form_data.password, password_hash) or user is None:
-        raise credentials_error("Neispravno korisnicko ime ili lozinka.")
+        raise credentials_error("Incorrect username or password.")
 
     return {"access_token": create_access_token(user.id), "token_type": "bearer"}

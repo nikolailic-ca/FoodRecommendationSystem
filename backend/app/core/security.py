@@ -64,15 +64,15 @@ def decode_access_token(token: str) -> int:
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=[JWT_ALGORITHM])
     except jwt.ExpiredSignatureError as exc:
-        raise credentials_error("Token je istekao, prijavite se ponovo.") from exc
+        raise credentials_error("Your session has expired, please sign in again.") from exc
     except jwt.InvalidTokenError as exc:
-        raise credentials_error("Neispravan token.") from exc
+        raise credentials_error("Invalid authentication token.") from exc
 
     subject = payload.get("sub")
     if not isinstance(subject, str):
-        raise credentials_error("Token nema ispravan 'sub' claim.")
+        raise credentials_error("Invalid authentication token.")
 
     try:
         return int(subject)
     except ValueError as exc:
-        raise credentials_error("Token nema ispravan 'sub' claim.") from exc
+        raise credentials_error("Invalid authentication token.") from exc

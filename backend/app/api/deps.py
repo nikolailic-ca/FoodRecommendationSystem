@@ -25,12 +25,12 @@ BearerToken = Annotated[str | None, Depends(oauth2_scheme)]
 def get_current_user(db: DbSession, token: BearerToken) -> User:
     """Obavezna autentikacija: vraca ORM korisnika ili podize 401."""
     if not token:
-        raise credentials_error("Potrebna je prijava.")
+        raise credentials_error("Not authenticated.")
 
     user = db.get(User, decode_access_token(token))
     if user is None:
         # Token je ispravan, ali korisnik je u medjuvremenu obrisan.
-        raise credentials_error("Korisnik iz tokena ne postoji.")
+        raise credentials_error("User account no longer exists.")
 
     return user
 
