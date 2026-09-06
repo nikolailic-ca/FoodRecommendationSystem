@@ -75,8 +75,13 @@ def match_percent_from_scores(sorted_scores: np.ndarray, positions: Sequence[int
 
     `sorted_scores` su ocene kandidata sortirane opadajuce, `positions` su
     indeksi (0-baziran rang) stavki za koje racunamo znacku.
+
+    Zabranjene stavke nose -inf i sortiranjem padaju na kraj; one se ne smeju
+    naci u prozoru, inace bi raspon bio beskonacan i normalizacija bi dala NaN.
     """
-    window = sorted_scores[:MATCH_TOP_K]
+    # Konacne vrednosti su prefiks niza (argsort ih drzi ispred -inf i NaN).
+    candidates = int(np.isfinite(sorted_scores).sum())
+    window = sorted_scores[: min(MATCH_TOP_K, candidates)]
     if window.size == 0:
         return [MATCH_TAIL for _ in positions]
 
@@ -86,7 +91,7 @@ def match_percent_from_scores(sorted_scores: np.ndarray, positions: Sequence[int
 
     result: list[int] = []
     for rank in positions:
-        if rank >= MATCH_TOP_K or rank >= sorted_scores.size:
+        if rank >= MATCH_TOP_K or rank >= candidates:
             result.append(MATCH_TAIL)
             continue
         if span <= 0:
