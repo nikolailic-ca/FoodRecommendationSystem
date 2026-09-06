@@ -1,0 +1,22 @@
+name: foodrec
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: foodrec-db
+    environment:
+      POSTGRES_USER: foodrec
+      POSTGRES_PASSWORD: foodrec_dev_2026
+      POSTGRES_DB: foodrec
+    # Port 15432 je namerno izabran: 5432 je AWS SSM tunel ka produkciji
+    # drugog projekta, a 5433 koriste ostali lokalni projekti.
+    ports: ["127.0.0.1:15432:5432"]
+    volumes: [foodrec_pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U foodrec -d foodrec"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  foodrec_pgdata:
