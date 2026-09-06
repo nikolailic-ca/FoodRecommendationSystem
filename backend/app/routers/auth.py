@@ -59,9 +59,9 @@ def register(payload: RegisterRequest, db: DbSession) -> dict:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                "Email je vec registrovan."
+                "That email is already registered."
                 if field == "email"
-                else "Korisnicko ime je vec zauzeto."
+                else "That username is already taken."
             ),
         ) from exc
 

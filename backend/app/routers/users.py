@@ -38,7 +38,7 @@ def _require_recipe(db: Session, recipe_id: int) -> None:
     if db.scalar(select(Recipe.id).where(Recipe.id == recipe_id)) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Recept {recipe_id} ne postoji.",
+            detail=f"Recipe {recipe_id} does not exist.",
         )
 
 

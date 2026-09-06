@@ -44,7 +44,7 @@ def read_recipe(db: DbSession, user: OptionalUser, recipe_id: RecipeId) -> dict:
     if recipe is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Recept {recipe_id} ne postoji.",
+            detail=f"Recipe {recipe_id} does not exist.",
         )
 
     rating = None
@@ -71,7 +71,7 @@ def read_similar(
     if recipe is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Recept {recipe_id} ne postoji.",
+            detail=f"Recipe {recipe_id} does not exist.",
         )
 
     # Model se koristi samo ako je ucitan i ako recept postoji u njegovom katalogu.
