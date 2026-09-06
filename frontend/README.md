@@ -1,16 +1,81 @@
-# React + Vite
+# FoodRec — frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + TypeScript + Vite single-page app for the FoodRec recipe recommendation
+system. Styling is Tailwind CSS v4 with shadcn/ui primitives; server state is handled
+by TanStack Query and HTTP by a typed axios client.
 
-Currently, two official plugins are available:
+## Requirements
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node 22 or newer (developed on Node 25)
+- npm 11 or newer
+- The FoodRec FastAPI backend running on `http://127.0.0.1:8001`
 
-## React Compiler
+## Setup
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm install
+cp .env.example .env
+```
 
-## Expanding the ESLint configuration
+`.env` holds a single variable:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+| Variable       | Default                 | Purpose                       |
+| -------------- | ----------------------- | ----------------------------- |
+| `VITE_API_URL` | `http://127.0.0.1:8001` | Base URL of the backend API   |
+
+If `VITE_API_URL` is missing the client falls back to `http://127.0.0.1:8001`.
+
+## Running
+
+```bash
+npm run dev
+```
+
+The dev server binds **http://localhost:5180** (`strictPort` is on, so it fails loudly
+instead of hopping to another port — the backend's CORS allowlist only contains
+`http://localhost:5180` and `http://127.0.0.1:5180`).
+
+Start the backend separately on port **8001** before signing in; the app talks to it
+for authentication, recipes and recommendations.
+
+## Scripts
+
+| Script              | What it does                                    |
+| ------------------- | ----------------------------------------------- |
+| `npm run dev`       | Vite dev server on port 5180                    |
+| `npm run build`     | Type-check (`tsc -b`) and build to `dist/`      |
+| `npm run preview`   | Serve the production build locally              |
+| `npm run lint`      | ESLint over the TypeScript sources              |
+| `npm run typecheck` | `tsc --noEmit` for the app project only         |
+
+## Layout
+
+```
+src/
+  api/            typed API client and one module per backend resource
+  components/
+    auth/         route guards
+    common/       loading and error states
+    layout/       app shell, header, page header, auth layout
+    ui/           shadcn/ui primitives
+  hooks/          TanStack Query hooks
+  lib/            tokens-free helpers: auth storage, query client, formatting, filters
+  pages/          route components
+```
+
+## Theme
+
+Light theme only. All design tokens live on `:root` in `src/index.css`; the brand
+tokens (`--match`, `--star`, `--lime`) are exposed through `@theme inline`, so
+`bg-match`, `text-match`, `text-star` and `bg-lime` are available as utilities.
+The `dark` variant is bound to a `.dark` ancestor that is never rendered, which keeps
+shadcn's `dark:` utilities inert.
+
+Adding another shadcn component:
+
+```bash
+npx shadcn@latest add <component>
+```
+
+The CLI resolves the `@/*` alias through the `compilerOptions.paths` entry in the root
+`tsconfig.json`; `tsconfig.app.json` intentionally declares `paths` without `baseUrl`.
