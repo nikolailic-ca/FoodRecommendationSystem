@@ -49,7 +49,12 @@ class ItemKNN(BaseModel):
 
         for start, stop, gram in iter_gram_blocks(binary, self.block):
             width = stop - start
-            gram /= norm[:, None] * norm[None, start:stop] + self.shrinkage
+            # One temporary, not three: at 42k items each (n_items, block)
+            # float32 buffer is ~700 MB.
+            denominator = np.multiply(norm[:, None], norm[None, start:stop])
+            denominator += self.shrinkage
+            gram /= denominator
+            del denominator
             # An item is not its own neighbour.
             gram[np.arange(start, stop), np.arange(width)] = 0.0
 

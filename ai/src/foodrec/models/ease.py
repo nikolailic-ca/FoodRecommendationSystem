@@ -60,7 +60,10 @@ class EASE(BaseModel):
         if verbose:
             print(f"    Gram matrica {m:,} x {m:,} float32 ({m * m * 4 / 2**30:.2f} GB)")
 
-        gram = np.zeros((m, m), dtype=np.float32)
+        # Fortran order matters: scipy.linalg.inv only honours overwrite_a on a
+        # column-major buffer, otherwise it copies and the peak doubles to 14 GB.
+        # G is symmetric, so column-major also makes the block writes contiguous.
+        gram = np.zeros((m, m), dtype=np.float32, order='F')
         for start, stop, block_values in iter_gram_blocks(binary, self.block):
             gram[:, start:stop] = block_values
             if verbose:

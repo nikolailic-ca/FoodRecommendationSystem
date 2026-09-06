@@ -10,6 +10,7 @@ ranks at chance level must never end up in a results table by accident.
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import time
 
@@ -109,6 +110,11 @@ def evaluate_model(model_key: str, splits: Splits, verbose: bool = True) -> dict
     (config.RESULTS_DIR / f"{model_key}.json").write_text(
         json.dumps(payload, indent=2), encoding="utf-8"
     )
+
+    # EASE holds a dense n_items x n_items matrix (7 GB on Food.com); drop it
+    # before the next model is loaded rather than waiting for the GC to notice.
+    del model, weak_scorer
+    gc.collect()
     return payload
 
 
