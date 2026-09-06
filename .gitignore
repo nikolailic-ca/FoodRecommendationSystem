@@ -1,17 +1,34 @@
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
 venv/
 
+# --- Editors / IDE ---
 .idea/
+.vscode/
 
-__pycache__/
-
+# --- Notebooks ---
 .ipynb_checkpoints/
 
-*.pyc
-
-saved_models/
-
+# --- Node / frontend ---
 node_modules/
+dist/
 
+# --- Environment ---
 .env
+.env.local
+!.env.example
 
+# --- Local databases (legacy SQLite) ---
+*.db
+database/
+
+# --- Data & model artifacts (not versioned) ---
 datasets/
+ai/artifacts/
+ai/data/processed/
+ai/saved_models/
+
+# --- macOS ---
+.DS_Store
