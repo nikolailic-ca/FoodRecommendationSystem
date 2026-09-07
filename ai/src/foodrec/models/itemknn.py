@@ -5,12 +5,20 @@ Similarity is cosine with shrinkage:
     s_ij = c_ij / (sqrt(n_i * n_j) + shrink)
 
 where c_ij is the number of users with a positive for both items and n_i is the
-item's popularity.  The shrinkage term (10) is what keeps two obscure recipes
-that were co-rated exactly once from scoring a perfect 1.0 - without it the
-neighbourhood fills up with noise and Recall collapses.
+item's popularity.  The shrinkage term is what keeps two obscure recipes that were
+co-rated exactly once from scoring a perfect 1.0.
 
-Only the top k=100 neighbours per item are kept, so S stays sparse and scoring
-is a single sparse product: scores = history @ S.
+The defaults (k=1000, shrinkage=500) are the validation argmax on Food.com, not
+the textbook k=100 / shrinkage=10.  That matters and is reported in the thesis:
+the median recipe here has only 5 training interactions, so with a small shrinkage
+term the top of every user's list fills with recipes rated by one or two people
+whose entire audience happens to overlap that user - hand-checked on a real user,
+whose top-10 candidates had training popularity 1, 2 and 5.  Raising the shrinkage
+pushes the model towards raw co-occurrence and monotonically improves Recall@20
+(0.0136 -> 0.0378 on validation), where it plateaus from ~500 upwards.
+
+Only the top k neighbours per item are kept, so S stays sparse and scoring is a
+single sparse product: scores = history @ S.
 """
 
 from __future__ import annotations
@@ -28,7 +36,8 @@ class ItemKNN(BaseModel):
     display_name = "ItemKNN"
     supports_strong = True
 
-    def __init__(self, n_items: int, k: int = 100, shrinkage: float = 10.0, block: int = 4096):
+    def __init__(self, n_items: int, k: int = 1000, shrinkage: float = 500.0,
+                 block: int = 4096):
         super().__init__(n_items)
         self.k = int(k)
         self.shrinkage = float(shrinkage)
@@ -71,9 +80,17 @@ class ItemKNN(BaseModel):
         row_index = np.concatenate(rows) if rows else np.empty(0, dtype=np.int64)
         col_index = np.concatenate(cols) if cols else np.empty(0, dtype=np.int64)
         data = np.concatenate(values).astype(np.float32) if values else np.empty(0, np.float32)
-        self.similarity = csr_array(
+        # The loop above kept, for every COLUMN j, the k items most similar to j.
+        # The brief asks for top-k per row (row i = item i's k nearest neighbours),
+        # and since the untruncated S is symmetric the two differ by exactly one
+        # transpose.  It is not cosmetic: scoring is `history @ S`, so per-row
+        # truncation makes each history item contribute only to its own k nearest
+        # candidates, which measured better on Food.com (0.0378 vs 0.0369 val
+        # Recall@20 at shrinkage 500).
+        by_column = csr_array(
             (data, (row_index, col_index)), shape=(n_items, n_items), dtype=np.float32
         )
+        self.similarity = csr_array(by_column.T)
         self.best_epoch = None
         if verbose:
             print(f"    matrica slicnosti: {self.similarity.nnz:,} nenultih elemenata      ")

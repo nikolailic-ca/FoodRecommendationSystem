@@ -11,6 +11,14 @@ No gradient descent at all, and on dense-ish implicit data it is usually within
 a point or two of Mult-VAE - which is exactly why it belongs in the thesis
 comparison next to the neural models.
 
+lambda defaults to 5000, not the textbook 500.  Two things force that here.  G is
+39,886 x 39,886 but has rank at most n_users = 25,959, so it is singular and lambda
+cannot be small: at lambda=1 validation Recall@20 collapses to 0.0173.  And the
+median recipe has five training interactions, so a diagonal of ~8 needs heavy
+damping before the regression stops chasing noise.  The validation sweep rises
+monotonically (0.0173 at 1, 0.0310 at 50, 0.0354 at 500, 0.0373 at 2000) and
+plateaus at 5000, which is the argmax by NDCG@20.
+
 Memory: B is a dense n_items x n_items float32 matrix.  For the ~42k Food.com
 items that is 7 GB, with a peak near 9 GB during the inversion, so this model is
 trained in its own process and never alongside an MPS job.  The Gram matrix is
@@ -34,7 +42,7 @@ class EASE(BaseModel):
     display_name = "EASE"
     supports_strong = True
 
-    def __init__(self, n_items: int, reg: float = 500.0, max_items: int | None = None,
+    def __init__(self, n_items: int, reg: float = 5000.0, max_items: int | None = None,
                  block: int = 4096):
         super().__init__(n_items)
         self.reg = float(reg)

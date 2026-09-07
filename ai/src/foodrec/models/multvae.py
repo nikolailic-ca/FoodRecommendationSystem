@@ -210,6 +210,14 @@ class MultVAE(BaseModel):
                     best_epoch = epoch
                     best_state = {k: v.detach().cpu().clone() for k, v in self.net.state_dict().items()}
                     stale = 0
+                elif self.variational and epoch <= self.anneal_epochs:
+                    # Do not count the KL annealing phase towards patience.  While
+                    # beta ramps, validation NDCG@20 reliably DIPS (measured on
+                    # Food.com: 0.0184 at epoch 1 -> 0.0159 at epoch 11 -> 0.0191 at
+                    # epoch 21, once beta caps).  The dip is longer than a patience
+                    # of 10, so the run would always be killed before the model
+                    # reaches the regime it was designed for.
+                    pass
                 else:
                     stale += 1
             self.history.append(record)
