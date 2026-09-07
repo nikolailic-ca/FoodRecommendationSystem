@@ -1,19 +1,5 @@
 import { client } from './client'
-import type {
-  RecipeDetail,
-  RecipeSearchParams,
-  RecipeSearchResult,
-  SimilarRecipe,
-} from './types'
-
-/** `GET /recipes?query=&limit=&offset=` */
-export async function searchRecipes(
-  params: RecipeSearchParams = {},
-): Promise<RecipeSearchResult> {
-  const { data } = await client.get<RecipeSearchResult>('/recipes', { params })
-
-  return data
-}
+import type { RecipeDetail, SimilarRecipe } from './types'
 
 /** `GET /recipes/{id}` */
 export async function getRecipe(recipeId: number): Promise<RecipeDetail> {

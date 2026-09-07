@@ -1,4 +1,4 @@
-import { Navigate, Outlet, useLocation } from 'react-router-dom'
+import { Navigate, Outlet } from 'react-router-dom'
 
 import { hasToken } from '@/lib/auth'
 
@@ -8,10 +8,8 @@ import { hasToken } from '@/lib/auth'
  * the response interceptor.
  */
 export function ProtectedRoute() {
-  const location = useLocation()
-
   if (!hasToken()) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />
+    return <Navigate to="/login" replace />
   }
 
   return <Outlet />

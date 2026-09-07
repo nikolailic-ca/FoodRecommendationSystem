@@ -108,17 +108,6 @@ export interface RatingMutationResult {
 /* Catalog                                                                    */
 /* -------------------------------------------------------------------------- */
 
-export interface RecipeSearchParams {
-  query?: string
-  limit?: number
-  offset?: number
-}
-
-export interface RecipeSearchResult {
-  total: number
-  items: RecipeCard[]
-}
-
 export interface SimilarRecipe {
   recipe: RecipeCard
   similarity: number

@@ -1,5 +1,3 @@
-import type { RecipeSearchParams } from '@/api/types'
-
 import type { RecommendationFilters } from './filters'
 
 /**
@@ -24,8 +22,6 @@ export const queryKeys = {
   // Kept out of the `['recipe', id]` prefix so rating a recipe does not force a
   // refetch of its "similar recipes" strip.
   similar: (recipeId: number, n: number) => ['similar', recipeId, n] as const,
-
-  recipeSearch: (params: RecipeSearchParams) => ['recipes', params] as const,
 
   recommendations: (filters: RecommendationFilters) =>
     ['recommendations', filters] as const,
