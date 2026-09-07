@@ -35,14 +35,25 @@ from foodrec.models.base import BaseModel, as_binary_csr
 _ROW_BUDGET = 2_000_000
 
 
+#: Narrowest the tower is allowed to get.  Below this a ReLU layer reliably dies.
+MIN_TOWER_WIDTH = 8
+
+
 def default_layers(mlp_dim: int) -> tuple[int, ...]:
-    """Tower widths for a given embedding size: 2d -> d -> d/2 -> d/4.
+    """Tower widths for a given embedding size: 2d -> d -> d/2 -> d/4, floored at 8.
 
     The first entry MUST be 2 * mlp_dim, because the tower is fed
     cat([mlp_user, mlp_item]).  With mlp_dim=32 this reproduces the paper's
     (64, 32, 16, 8); sweeping the embedding down has to shrink the tower with it.
+
+    The floor is not cosmetic.  Halving all the way down gives (16, 8, 4, 2) at
+    mlp_dim=8, and that 2-unit final ReLU dies: measured on Food.com, 100% of the
+    tower's output slots were zero after training, the MLP branch contributed
+    exactly 0.000 to the logit against GMF's 0.552, and the model had silently
+    degenerated into plain GMF.  Sweeping the embedding down would then not be
+    measuring a smaller NeuMF at all.
     """
-    return tuple(max(1, 2 * mlp_dim // 2**i) for i in range(4))
+    return tuple(max(MIN_TOWER_WIDTH, 2 * mlp_dim // 2**i) for i in range(4))
 
 
 class NeuMFNet(nn.Module):
