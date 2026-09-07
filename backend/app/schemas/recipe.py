@@ -45,7 +45,9 @@ class RecipeDetail(RecipeCard):
     description: str | None
     steps: list[str]
     ingredients: list[str]
-    # Ovde idu SVI tagovi, ne samo cetiri sa kartice.
+    # Svi smisleni tagovi, ne samo cetiri sa kartice. Filter je isti kao na
+    # kartici (bez strukturnih i tagova trajanja), pa je prvi tag isti na oba
+    # mesta i frontend bira istu placeholder ikonicu.
     tags: list[str]
     nutrition: Nutrition
     submitted: date | None
