@@ -97,21 +97,24 @@ recepta `i`). Skorovanje je jedan redak proizvod `istorija @ S`.
 **EASE** (Steck, 2019) - linearni model u zatvorenoj formi: `G = X'X + lambda*I`,
 `B = -G^-1 / diag(G^-1)`, nula na dijagonali, `lambda = 5000`.
 
-**Mult-DAE** (Liang i dr., 2018) - denoising autoenkoder `n_items -> 200 -> n_items`,
-tanh, dropout 0.5 na L2-normalizovanom ulazu, multinomijalna verodostojnost,
-Adam 1e-3, weight decay 1e-4.
+**Mult-DAE** (Liang i dr., 2018) - denoising autoenkoder
+`n_items -> 400 -> n_items`, tanh, dropout 0.5 na L2-normalizovanom ulazu,
+multinomijalna verodostojnost, Adam 1e-3, weight decay 1e-4. Usko grlo je 400, ne
+200 iz zadatka - sirina na ovom skupu kupuje i tacnost i pokrivenost (sekcija 6).
 
 **Mult-VAE** (Liang i dr., 2018) - **model koji se servira**. Enkoder
 `Linear(n_items, 600) -> tanh -> Linear(600, 400)` se deli na `mu` i `logvar`
-dimenzije 200; dekoder `Linear(200, 600) -> tanh -> Linear(600, n_items)`. Gubitak
+dimenzije **400**; dekoder `Linear(400, 600) -> tanh -> Linear(600, n_items)`. Gubitak
 je multinomijalna log-verodostojnost plus `beta * KL`, beta linearno raste od 0 do
 0,2 kroz prvih 20 epoha pa se drzi. U inferenciji se koristi `mu`, bez dropout-a i
 bez uzorkovanja - inace metrike variraju izmedju pokretanja.
 
-**NeuMF** (He i dr., 2017) - GMF grana (dimenzija 32) i MLP grana (32+32
-ugradjivanja kroz slojeve 64-32-16-8), spojene u jedan logit; binarna unakrsna
+**NeuMF** (He i dr., 2017) - GMF grana (dimenzija **8**) i MLP grana (8+8
+ugradjivanja kroz slojeve 16-8-8-8), spojene u jedan logit; binarna unakrsna
 entropija sa 4 uniformno uzorkovana negativna primera po pozitivnom, iznova
-uzorkovana svake epohe. **Bez pretreniranja grana** - u originalnom radu se GMF i
+uzorkovana svake epohe, bez weight decay-a. Dimenzija je 8, ne 32 iz rada: sa 32
+model nosi 4,22 miliona parametara ugradjivanja prema 540 tisuca interakcija i
+prenauci na trecoj epohi. **Bez pretreniranja grana** - u originalnom radu se GMF i
 MLP prvo treniraju odvojeno; ovde su obe od nule, sto je svesno pojednostavljenje.
 
 ---
@@ -150,27 +153,30 @@ dobitke, IDCG preko `min(K, |ciljevi|)`.
 
 ## 5. Rezultati
 
+Svih sest modela je podeseno na validacionom skupu, nijedan nije ostao na
+vrednostima iz literature. Test skup nije korisen ni za jedan izbor.
+
 ### Weak generalizacija (primarni pogled)
 
 | Model | Recall@10 | Recall@20 | NDCG@10 | NDCG@20 | Coverage@20 |
 |---|---|---|---|---|---|
-| Popularity | 0,0274 | 0,0430 | 0,0167 | 0,0212 | 0,001 |
-| ItemKNN | 0,0256 | 0,0381 | 0,0173 | 0,0210 | 0,714 |
-| EASE | 0,0262 | 0,0382 | 0,0179 | 0,0214 | 0,667 |
-| **Mult-DAE** | **0,0293** | **0,0450** | **0,0191** | **0,0236** | 0,023 |
-| Mult-VAE | 0,0258 | 0,0412 | 0,0157 | 0,0200 | 0,283 |
-| NeuMF | 0,0268 | 0,0432 | 0,0162 | 0,0210 | 0,010 |
+| Popularity | 0,0274 | 0,0430 | 0,0167 | 0,0212 | 0,0014 |
+| ItemKNN | 0,0256 | 0,0381 | 0,0173 | 0,0210 | **0,7139** |
+| EASE | 0,0262 | 0,0382 | 0,0179 | 0,0214 | 0,6670 |
+| **Mult-DAE** | **0,0302** | **0,0454** | **0,0198** | **0,0242** | 0,0936 |
+| Mult-VAE | 0,0272 | 0,0432 | 0,0164 | 0,0211 | 0,2662 |
+| NeuMF | 0,0281 | 0,0419 | 0,0168 | 0,0208 | 0,0114 |
 | _slucajno rangiranje_ | 0,0003 | 0,0005 | 0,0003 | 0,0005 | - |
 
 ### Strong generalizacija (hladan start)
 
 | Model | Recall@10 | Recall@20 | NDCG@10 | NDCG@20 | Coverage@20 |
 |---|---|---|---|---|---|
-| Popularity | 0,0318 | 0,0466 | 0,0196 | 0,0239 | 0,001 |
-| ItemKNN | 0,0276 | 0,0440 | 0,0178 | 0,0226 | 0,144 |
-| EASE | 0,0287 | 0,0434 | 0,0195 | 0,0238 | 0,124 |
-| **Mult-DAE** | **0,0355** | **0,0532** | **0,0225** | **0,0277** | 0,016 |
-| Mult-VAE | 0,0329 | 0,0482 | 0,0212 | 0,0256 | 0,024 |
+| Popularity | 0,0318 | 0,0466 | 0,0196 | 0,0239 | 0,0010 |
+| ItemKNN | 0,0276 | 0,0440 | 0,0178 | 0,0226 | 0,1438 |
+| EASE | 0,0287 | 0,0434 | 0,0195 | 0,0238 | 0,1243 |
+| **Mult-DAE** | **0,0354** | **0,0534** | **0,0235** | **0,0289** | 0,0330 |
+| Mult-VAE | 0,0351 | 0,0517 | 0,0223 | 0,0271 | 0,0190 |
 | NeuMF | N/A | N/A | N/A | N/A | N/A |
 
 ### Cena treniranja i skorovanja
@@ -180,41 +186,72 @@ dobitke, IDCG preko `min(K, |ciljevi|)`.
 | Popularity | - | 0,0 | 0,26 | 0,002 |
 | ItemKNN | - | 17,7 | 4,73 | 0,089 |
 | EASE | - | 77,3 | 10,68 | 6,702 |
-| Mult-DAE | 32 | 219,3 | 1,24 | 0,038 |
-| Mult-VAE | 20 | 198,3 | 1,49 | 0,062 |
-| NeuMF | 3 | 47,9 | 0,84 | 1,002 |
+| Mult-DAE | 76 | 556,1 | 1,30 | 0,059 |
+| Mult-VAE | 27 | 290,8 | 1,44 | 0,088 |
+| NeuMF | 5 | 58,6 | 0,80 | 0,663 |
 
 Skorovanje je mereno u evaluatoru, u serijama korisnika, na MPS-u za neuronske
-modele. **NeuMF je 16 puta skuplji od Mult-VAE** jer mora da provuce svaki par
-(korisnik, recept) kroz MLP, dok Mult-VAE skoruje ceo katalog jednim prolazom.
-EASE je najskuplji (gust proizvod sa matricom 39.886 x 39.886), ali se to placa
-jednom po korisniku, ne po receptu.
+modele. EASE je najskuplji (gust proizvod sa matricom 39.886 x 39.886), NeuMF je
+oko sedam puta skuplji od Mult-VAE jer mora da provuce svaki par (korisnik, recept)
+kroz MLP. Za stvarnu cenu u produkciji vidi sekciju 8: numpy runtime radi
+0,52 ms po korisniku nad celim katalogom.
 
-### Glavni nalaz: popularnost je ovde jak takmac
+### Glavni nalaz: tacnost ih ne razlikuje, pokrivenost ih razlikuje
 
-Najvazniji rezultat nije koji je model najbolji nego **koliko je mala razlika**.
-Mult-DAE, jedini model koji ubedljivo pobedjuje popularnost, dobija 4,7% relativno
-na weak Recall@20 (0,0450 prema 0,0430) i 14,2% na strong (0,0532 prema 0,0466).
-ItemKNN i EASE su **ispod** popularnosti po Recall-u, a tek neznatno iznad po NDCG-u.
+Posle podesavanja svih sest modela slika je jasna i pomalo neprijatna:
 
-Ovo je bio dovoljno neocekivan rezultat da je proveren pre nego sto je prihvacen.
-Cela istraga je u sekciji 6; zakljucak je da su brojevi tacni i da je uzrok
-retkost podataka: medijana korisnika ima 4 trening ocene, medijana recepta 5, a
-23,3% korisnika ima najvise jednu trening stavku. Signal ko-pojavljivanja na tom
-nivou retkosti nosi manje informacije od same popularnosti na K=20.
+- **Recall@20 se krece od 0,0381 do 0,0454** - raspon od 19% izmedju najboljeg i
+  najgoreg modela, a popularnost (0,0430) je treca.
+- **Coverage@20 se krece od 0,14% do 71,4%** - raspon od **527 puta**.
 
-Uz to, **pokrivenost pokazuje da modeli nisu isti iako im se brojevi poklapaju**:
-popularnost ikada preporuci 0,1% kataloga (56 recepata), ItemKNN 71%, EASE 67%.
-Sistem koji svima nudi istih 20 recepata i sistem koji koristi 28.000 recepata za
-istu tacnost nisu ista stvar za korisnika, i to je argument koji ide u rad.
+Mult-DAE je najbolji po tacnosti u oba pogleda: +5,6% relativno na weak Recall@20
+prema popularnosti (0,0454 prema 0,0430) i +14,6% na strong (0,0534 prema 0,0466).
+Mult-VAE je drugi u strong pogledu (0,0517, +10,9% prema popularnosti), a u weak
+pogledu je izjednacen sa popularnoscu (0,0432 prema 0,0430).
+
+Ali pokrivenost kaze nesto sto tacnost ne kaze. Popularnost ikada preporuci
+**56 od 39.886 recepata** (0,14%). NeuMF preporuci 1,1%, Mult-DAE 9,4%, Mult-VAE
+26,7%, EASE 66,7%, ItemKNN 71,4%. Sistem koji svima nudi istih 56 recepata i sistem
+koji koristi 28.000 recepata za istu tacnost nisu ista stvar za korisnika, ni za
+autore recepata. Slika 6 (`figures/fig6_front_pokrivenosti.png`) je crta tacno tako.
 
 Kvalitativno, `similar()` nad izvezenim modelom vraca recepte koji se **zajedno
 konzumiraju**, a ne koji imaju slicne sastojke: za "sandra s key lime pie" susedi su
-"my no roll pie crust" (0,483) i "creamy burrito casserole" (0,482). To je ocekivano
-za cisto kolaborativni model bez sadrzaja i opravdava tag fallback koji backend vec
-ima za slicne recepte.
+"my no roll pie crust" i "creamy burrito casserole". To je ocekivano za cisto
+kolaborativni model bez sadrzaja i opravdava tag fallback koji backend vec ima.
 
----
+### Preporuka: sta servirati
+
+**Preporuka je da ostane Mult-VAE.** Odluku donosi korisnik; ovo je argument.
+
+| | Mult-DAE | Mult-VAE |
+|---|---|---|
+| weak NDCG@20 | 0,0242 | 0,0211 (-13%) |
+| strong Recall@20 | 0,0534 | 0,0517 (-3%) |
+| Coverage@20 | 9,4% | **26,7% (2,8x)** |
+| hladan start | radi | radi |
+| trening | 556 s, 76 epoha | 291 s, 27 epoha |
+
+Razlozi:
+
+1. **Razlika u tacnosti je mala u apsolutnom iznosu, razlika u pokrivenosti nije.**
+   NDCG@20 0,0242 prema 0,0211 je 0,003 razlike na skali na kojoj sve sedi blizu
+   popularnosti; 9,4% prema 26,7% pokrivenosti je razlika koja se vidi u aplikaciji.
+2. **U hladnom startu su prakticno izjednaceni** (0,0534 prema 0,0517, 3%), a
+   hladan start je slucaj koji ova aplikacija stvarno ima - svaki novi korisnik
+   prolazi kroz onboarding sa nekoliko ocena.
+3. **Mult-VAE je jedini model iz gornje polovine tabele koji nije ni skup ni
+   degenerisan**: EASE i ItemKNN imaju najvecu pokrivenost ali su ispod popularnosti
+   po Recall-u i EASE trazi 10,7 GB; NeuMF ne radi hladan start; popularnost nije
+   personalizacija.
+4. Artefakt i numpy runtime su vec izgradjeni i izmereni na 0,52 ms po korisniku.
+
+**Ako se prioritet promeni na tacnost, zamena je jedna zastavica**:
+`uv run python -m foodrec.train --model multdae --full` izvozi Mult-DAE u isti
+`ai/artifacts/mult_vae/`. `foodrec.serving` cita `variational` iz `weights.npz`, pa
+isti runtime servira oba modela bez ikakve promene u backend-u. Cena je pokrivenost
+spustena sa 26,7% na 9,4%.
+
 
 ## 6. Istraga: zasto su ItemKNN i EASE ispod popularnosti
 
@@ -310,6 +347,110 @@ proveren, opet samo na validaciji:
 
 Sa manjom beta model prenauci vec u prvim epohama. `beta = 0,2` iz zadatka je
 najbolja izmerena vrednost i ostaje.
+
+**7. Drugi krug: Mult-DAE, NeuMF i ravnopravan budzet epoha.** Prvi krug je
+podesio samo ItemKNN, EASE i beta za Mult-VAE, pa tabela nije bila ravnopravno
+takmicenje. Ovo je nadoknadjeno. Sve u nastavku je mereno na validaciji, sa
+Coverage@20 u svakom redu, jer je pokrivenost ispala kolona koja nosi odluku.
+
+Mult-DAE - sirina uskog grla (arhitektura je `n_items -> latent -> n_items`, pa je
+`hidden` inertan; provereno: `MultDAE(latent=32, hidden=999)` gradi slojeve
+`(32, n_items)` i `(n_items, 32)` i nista sirine 999):
+
+| latent | dropout | wd | epoha | Recall@20 | NDCG@20 | Coverage@20 |
+|---|---|---|---|---|---|---|
+| 32 | 0,5 | 1e-4 | 41 | 0,0440 | 0,0199 | 0,40% |
+| 64 | 0,5 | 1e-4 | 23 | 0,0439 | 0,0202 | 0,39% |
+| 128 | 0,5 | 1e-4 | 32 | 0,0457 | 0,0210 | 1,15% |
+| 200 | 0,5 | 1e-4 | 57 | 0,0477 | 0,0227 | 4,50% |
+| **400** | **0,5** | **1e-4** | **60** | 0,0471 | **0,0233** | **7,01%** |
+| 800 | 0,5 | 1e-4 | 47 | 0,0455 | 0,0229 | 7,72% |
+| 200 | 0,2 | 1e-4 | 11 | 0,0454 | 0,0205 | 0,46% |
+| 200 | 0,8 | 1e-4 | 67 | **0,0505** | 0,0229 | 1,52% |
+| 400 | 0,8 | 1e-4 | 51 | 0,0479 | 0,0225 | 1,49% |
+| 200 | 0,5 | 0 | 20 | 0,0481 | 0,0223 | 5,73% |
+| 400 | 0,5 | 0 | 14 | 0,0467 | 0,0225 | 6,81% |
+| 200 | 0,5 | 1e-3 | 10 | 0,0427 | 0,0192 | 0,10% |
+
+Na pitanje da li uzi ili jace regularizovan Mult-DAE menja malo tacnosti za mnogo
+pokrivenosti odgovor je **ne, gubi na oba fronta**. Sirina kupuje i jedno i drugo
+istovremeno: od 32 na 400 NDCG@20 raste 0,0199 -> 0,0233 (+17%), a pokrivenost
+0,40% -> 7,01% (17 puta). Zasicuje se na 400 (800 daje NDCG 0,0229). Jaca
+regularizacija ide u suprotnom smeru na oba fronta: `wd = 1e-3` urusava model na
+popularnost (NDCG 0,0192, pokrivenost 0,10%).
+
+**Koleno je u dropout-u, ne u sirini.** Pri latent = 200, dropout 0,8 daje najbolji
+Recall@20 u celoj pretrazi (0,0505, +5,9% prema dropout 0,5) ali sece pokrivenost sa
+4,50% na 1,52% (tri puta) i neznatno smanjuje NDCG. Ako se nekada bude birao model
+po cistom Recall-u, to je tacka na koju treba gledati - i cena je pokrivenost.
+
+Mult-DAE je pri tome i **prerano zaustavljan**: sa `patience = 15` najbolje epohe su
+57-76, dok je prvi krug sa `patience = 10` stajao na epohi 32.
+
+NeuMF - dimenzija ugradjivanja i regularizacija (prvo 17 kombinacija sa
+`weight_decay` i brojem negativnih primera, jedna od 18 je prekinuta jer je bila u
+vec urusenom delu mreze):
+
+| dim | wd | neg | epoha | Recall@20 | NDCG@20 | Coverage@20 | parametara |
+|---|---|---|---|---|---|---|---|
+| 8 | 0 | 4 | 11 | 0,0441 | 0,0191 | 0,72% | 1,05 M |
+| 8 | 1e-5 | 4 | 4 | 0,0405 | 0,0180 | 0,22% | 1,05 M |
+| 8 | 1e-4 | 4 | 1 | 0,0005 | 0,0002 | - | 1,05 M |
+| 16 | 0 | 4 | 4 | 0,0380 | 0,0166 | 0,29% | 2,11 M |
+| 16 | 1e-5 | 8 | 3 | 0,0422 | 0,0186 | 0,27% | 2,11 M |
+| 16 | 1e-4 | 4 | 1 | 0,0005 | 0,0002 | - | 2,11 M |
+| 32 | 0 | 4 | 3 | 0,0436 | 0,0183 | 0,62% | 4,22 M |
+| 32 | 1e-5 | 4 | 10 | 0,0434 | 0,0188 | 1,68% | 4,22 M |
+| 32 | 1e-5 | 8 | 11 | 0,0429 | 0,0190 | **1,72%** | 4,22 M |
+| 32 | 1e-4 | 4 | 6 | 0,0420 | 0,0184 | 0,26% | 4,22 M |
+
+Dve stvari odmah: **`weight_decay = 1e-4` urusava model na slucajno rangiranje**
+(Recall@20 0,0005 pri pragu 0,0005). Adam-ov weight decay nad tabelama ugradjivanja
+u kojima svaki red dobije po nekoliko gradijentnih koraka gura sve redove u nulu pre
+nego sto ista nauce. I spustanje dimenzije pomaze: 4,22 M parametara prema 540 tisuca
+interakcija je red velicine previse, sto je i bio razlog zaustavljanja na epohi 3.
+
+**Ali dim = 8 je krio degeneraciju.** Toranj se u prvoj verziji polovio do kraja, pa
+je na `mlp_dim = 8` bio `(16, 8, 4, 2)`, a taj zavrsni sloj sa dve jedinice **umre**:
+posle treninga 100% izlaznih slotova tornja je nula, MLP grana doprinosi tacno 0,000
+logitu prema GMF-ovih 0,552, i model se tiho izrodio u obican GMF. To objasnjava i
+zasto su dva reda sa dropout-om bila identicna do cetvrte decimale (dropout nad
+nulama su nule, gradijenti kroz mrtvu granu su nula). Najbolji red u mrezi nije bio
+NeuMF rezultat.
+
+Posle uvodjenja poda na sirinu tornja (`>= 8`) grana je ziva i brojevi su fer:
+
+| dim | toranj | wd | neg | epoha | Recall@20 | NDCG@20 | Coverage@20 | ziv izlaz | MLP dio logita |
+|---|---|---|---|---|---|---|---|---|---|
+| **8** | (16, 8, 8, 8) | **0** | **4** | **5** | 0,0435 | **0,0193** | 0,73% | 87,6% | 88,5% |
+| 8 | (16, 8, 8, 8) | 1e-5 | 4 | 3 | 0,0426 | 0,0186 | 0,15% | 80,4% | 100% |
+| 16 | (32, 16, 8, 8) | 0 | 4 | 4 | 0,0436 | 0,0188 | 0,86% | 60,3% | 84,6% |
+| 16 | (32, 16, 8, 8) | 1e-5 | 4 | 3 | 0,0428 | 0,0186 | 0,11% | 63,3% | 100% |
+| 16 | (32, 16, 8, 8) | 1e-5 | 8 | 9 | 0,0430 | 0,0189 | 0,47% | 74,1% | 100% |
+
+Vise negativnih primera (8 prema 4) nije pomoglo pri maloj dimenziji, a pomaze
+neznatno pri 32 u kombinaciji sa `wd = 1e-5`. NeuMF-ov sopstveni front je uzak:
+dim 8 za tacnost (NDCG 0,0193, pokrivenost 0,73%) ili dim 32 sa `wd = 1e-5` za
+pokrivenost (NDCG 0,0190, pokrivenost 1,72%). Cak i najbolja NeuMF pokrivenost je
+red velicine ispod Mult-VAE.
+
+Iskrena napomena: NeuMF je na testu posle podesavanja **neznatno losiji** nego pre
+(weak Recall@20 0,0419 prema 0,0432), iako je na validaciji bolji. To je efekat
+prenaucavanja na validacioni skup pri izboru iz mreze od 22 konfiguracije i tako se
+i izvestava - izbor je napravljen po pravilu koje je fiksirano unaprijed, bez
+gledanja u test.
+
+**8. Ravnopravan budzet za Mult-VAE.** Posto je Mult-DAE dobio `patience = 15` i
+`max_epochs = 120`, isti budzet je dat i Mult-VAE, plus provera sirine:
+
+| hidden | latent | epoha | Recall@20 | NDCG@20 | Coverage@20 |
+|---|---|---|---|---|---|
+| 600 | 200 | 33 | 0,0408 | 0,0195 | 15,40% |
+| **600** | **400** | **33** | **0,0452** | **0,0206** | 13,30% |
+| 1200 | 400 | 37 | 0,0454 | 0,0205 | 7,48% |
+
+Sirenje uskog grla pomaze i VAE (NDCG 0,0195 -> 0,0206), a sirenje skrivenog sloja
+na 1200 ne kupuje nista i prepolovi pokrivenost, pa `hidden` ostaje 600.
 
 **Zakljucak.** Nijedna od pet provera nije nasla gresku. Rezultat je tacan: na
 Food.com skupu, sa pozitivnom ocenom >= 4 i k-core (3, 5), popularnost je jak takmac
@@ -415,28 +556,35 @@ radi.
 
 ## 9. Poznata ogranicenja
 
-- **Mult-DAE je izmereno bolji od Mult-VAE na ovom skupu** (weak Recall@20 0,0450
-  prema 0,0412; strong 0,0532 prema 0,0482). Servira se Mult-VAE, kako je
-  dogovoreno pre merenja; Mult-DAE je jeftiniji i bolji, pa je zamena serviranog
-  modela otvorena odluka koju vredi doneti svesno, a ne precutati.
+- **Mult-DAE je tacniji, Mult-VAE pokriva skoro tri puta veci katalog.** Puna
+  argumentacija i preporuka su u sekciji 5; zamena serviranog modela je jedna
+  zastavica (`--model multdae`) jer isti numpy runtime servira oba.
 - **EASE je memorijski najskuplji korak**: gusta matrica `B` je 5,9 GB, izmereni
   vrhunac procesa 10,68 GB (a 13,16 GB tokom pretrage po lambda, gde vise fitova ide
   jedan za drugim). Trenira se u zasebnom procesu i nikada uporedo sa MPS poslom.
   `--max-items N` ogranicava model na N najpopularnijih recepata; tada EASE ne moze
   da preporuci nista van glave kataloga. Na disku se `B` cuva kao float16 (3 GB
   umesto 6) - vrednosti su reda 1e-5 do 1e-1, a skor je zbir nekoliko desetina njih.
-- **NeuMF prenauci gotovo odmah**: najbolja epoha je 3, a validacioni NDCG@20 pada
-  vec od cetvrte. Sa 26k x 64 + 40k x 64 parametara ugradjivanja prema 540k
-  interakcija to je ocekivano, i pogorsano je izostankom pretreniranja grana.
+- **NeuMF prenauci gotovo odmah** i posle podesavanja: najbolja epoha je 5. Sa
+  1,05 miliona parametara ugradjivanja (posle spustanja dimenzije sa 32 na 8) prema
+  540 tisuca interakcija to je i dalje ocekivano, i pogorsano je izostankom
+  pretreniranja grana. `weight_decay` nije resenje - nad ovako retkim tabelama
+  ugradjivanja urusava model na slucajno rangiranje (sekcija 6).
 - **NeuMF nema strong generalizaciju** (sekcija 4).
 - Nema modela zasnovanog na sadrzaju ni hibrida - poredjenje je namerno svedeno na
   cisto kolaborativne modele, zbog roka i obima rada. Sekcija 5 pokazuje da bi
   sadrzaj (sastojci, tagovi) verovatno bio najveci pojedinacni dobitak na ovom skupu.
 - Metrike u `config.json` izvezenog modela su sa **podele**, ne sa finalnog modela
   treniranog na svim podacima; finalni model po definiciji nema izdvojen test skup.
-- Podesavanje hiperparametara je radjeno na validacionom skupu i to samo za ItemKNN,
-  EASE i Mult-VAE (beta). Mult-DAE i NeuMF su ostali na vrednostima iz zadatka, pa im
-  rezultati nisu jednako "iscedjeni" - to treba imati u vidu pri poredjenju.
+- Podesavanje hiperparametara je radjeno iskljucivo na validacionom skupu, za sva
+  sest modela, u dva kruga (sekcija 6). Ostaje neizbezan rizik prenaucavanja na
+  validaciju pri izboru iz vecih mreza: NeuMF je posle podesavanja na testu
+  neznatno losiji nego pre, iako je na validaciji bolji.
+- **Pokrivenost u pretragama je merena na uzorku od 5.000 validacionih korisnika**, a
+  u finalnoj tabeli na svih 23.363 weak korisnika. Brojevi iz sekcije 6 se zato ne
+  smeju direktno porediti sa onima iz sekcije 5 - unutar pretrage jesu uporedivi.
+- **Backend ucitava artefakt jednom, u FastAPI lifespan-u.** Posle novog izvoza API
+  mora da se restartuje da bi video novi model.
 
 ---
 

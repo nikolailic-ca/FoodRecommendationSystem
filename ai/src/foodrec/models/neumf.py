@@ -16,6 +16,14 @@ Two properties matter for the thesis and are reported, not hidden:
 Full-catalog scoring is O(n_items x MLP) per user, so users are scored in small
 batches (32).  Next to a single Mult-VAE forward pass this is orders of
 magnitude more expensive - measured and reported in ai/results/summary.md.
+
+The embedding width defaults to 8, not the paper's 32.  At 32 the model carries
+4.2 million embedding parameters against 540k training interactions, peaks at
+epoch 3 and then overfits; at 8 it carries 1.05 million, trains for 5 epochs and
+scores better (validation NDCG@20 0.0193 vs 0.0190).  Weight decay is left at 0
+on purpose: Adam decay on embedding tables that each receive a handful of
+gradient updates drives every row to zero, and 1e-4 collapsed the model to random
+ranking (Recall@20 0.0005 against a 0.0005 floor).
 """
 
 from __future__ import annotations
@@ -94,11 +102,11 @@ class NeuMF(BaseModel):
     supports_strong = False
     score_batch_size = 32
 
-    def __init__(self, n_items: int, n_users: int = 0, gmf_dim: int = 32, mlp_dim: int = 32,
+    def __init__(self, n_items: int, n_users: int = 0, gmf_dim: int = 8, mlp_dim: int = 8,
                  layers: tuple[int, ...] | None = None, negatives: int = 4,
                  lr: float = 1e-3, weight_decay: float = 0.0, dropout: float = 0.0,
-                 batch_size: int = 4096, max_epochs: int = 30,
-                 patience: int = 3, val_sample: int = 5000):
+                 batch_size: int = 4096, max_epochs: int = 40,
+                 patience: int = 5, val_sample: int = 5000):
         super().__init__(n_items)
         self.n_users = int(n_users)
         self.gmf_dim = gmf_dim

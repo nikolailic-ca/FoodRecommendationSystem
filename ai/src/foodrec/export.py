@@ -54,14 +54,15 @@ def export_multvae(
     source: Path | None = None,
     destination: Path | None = None,
     seed: int = config.SEED,
+    model_key: str = "multvae",
 ) -> Path:
     import torch
 
-    source = Path(source) if source is not None else _pick_source()
+    source = Path(source) if source is not None else _pick_source(model_key)
     destination = Path(destination) if destination is not None else config.SERVING_DIR
     destination.mkdir(parents=True, exist_ok=True)
 
-    model = MultVAE.load(source)
+    model = MultVAE.load(source)  # also loads a Mult-DAE artifact (variational=False)
     data = load_positives()
     if len(data.items) != model.n_items:
         raise SystemExit(
@@ -86,29 +87,37 @@ def export_multvae(
     popularity = np.asarray(data.matrix().sum(axis=0), dtype=np.float32).ravel()
     np.save(destination / "popularity.npy", popularity)
 
-    results_path = config.RESULTS_DIR / "multvae.json"
+    results_path = config.RESULTS_DIR / ("multvae.json" if model.variational else "multdae.json")
     results = json.loads(results_path.read_text(encoding="utf-8")) if results_path.exists() else {}
 
     payload = {
-        "model": "mult_vae",
+        "model": "mult_vae" if model.variational else "mult_dae",
         "architecture": {
             "n_items": model.n_items,
-            "hidden": model.hidden,
+            "hidden": model.hidden if model.variational else None,
             "latent": model.latent,
             "variational": model.variational,
             "activation": "tanh",
             "input": "L2-normalised binary implicit feedback",
-            "encoder": [
-                f"Linear({model.n_items}, {model.hidden})",
-                "tanh",
-                f"Linear({model.hidden}, {2 * model.latent})  -> mu, logvar",
-            ],
-            "decoder": [
-                f"Linear({model.latent}, {model.hidden})",
-                "tanh",
-                f"Linear({model.hidden}, {model.n_items})",
-            ],
-            "inference": "mu, dropout off",
+            "encoder": (
+                [
+                    f"Linear({model.n_items}, {model.hidden})",
+                    "tanh",
+                    f"Linear({model.hidden}, {2 * model.latent})  -> mu, logvar",
+                ]
+                if model.variational
+                else [f"Linear({model.n_items}, {model.latent})", "tanh"]
+            ),
+            "decoder": (
+                [
+                    f"Linear({model.latent}, {model.hidden})",
+                    "tanh",
+                    f"Linear({model.hidden}, {model.n_items})",
+                ]
+                if model.variational
+                else [f"Linear({model.latent}, {model.n_items})"]
+            ),
+            "inference": "mu, dropout off" if model.variational else "deterministic, dropout off",
         },
         "hyperparams": model.hyperparams(),
         "seed": seed,
@@ -149,20 +158,20 @@ def export_multvae(
     return destination
 
 
-def _pick_source() -> Path:
+def _pick_source(model_key: str = "multvae") -> Path:
     """Prefer the model refit on all positives; fall back to the split model."""
-    full = artifact_dir("multvae", full=True)
+    full = artifact_dir(model_key, full=True)
     if (full / "meta.json").exists():
         return full
-    split = artifact_dir("multvae")
+    split = artifact_dir(model_key)
     if (split / "meta.json").exists():
         print("  UPOZORENJE: koristi se model treniran samo na podeli "
               "(pokrenite --full za finalni model).")
         return split
     raise SystemExit(
-        "GRESKA: Mult-VAE nije istreniran.\n"
-        "Pokrenite: uv run python -m foodrec.train --model multvae && "
-        "uv run python -m foodrec.train --model multvae --full"
+        f"GRESKA: {model_key} nije istreniran.\n"
+        f"Pokrenite: uv run python -m foodrec.train --model {model_key} && "
+        f"uv run python -m foodrec.train --model {model_key} --full"
     )
 
 
@@ -170,13 +179,21 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m foodrec.export", description="Izvoz Mult-VAE modela za FastAPI backend."
     )
-    parser.add_argument("--model", default="multvae", choices=["multvae"])
+    parser.add_argument(
+        "--model",
+        default="multvae",
+        choices=["multvae", "multdae"],
+        help="Mult-DAE deli isti numpy runtime (serving cita variational iz weights.npz), "
+        "pa je zamena serviranog modela jedna zastavica.",
+    )
     parser.add_argument("--source", default=None, help="Direktorijum sa istreniranim modelom.")
     parser.add_argument("--dest", default=None, help=f"Podrazumevano {config.SERVING_DIR}.")
     parser.add_argument("--seed", type=int, default=config.SEED)
     args = parser.parse_args(argv)
 
-    export_multvae(source=args.source, destination=args.dest, seed=args.seed)
+    export_multvae(
+        source=args.source, destination=args.dest, seed=args.seed, model_key=args.model
+    )
     return 0
 
 

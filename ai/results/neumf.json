@@ -2,7 +2,7 @@
   "model": "neumf",
   "display_name": "NeuMF",
   "seed": 42,
-  "git_commit": "f6a9924",
+  "git_commit": "e7e2272",
   "dataset_stats": {
     "datasets_dir": "/Users/dimitrijepavlovic/DzoniProjekat/FoodRecommendationSystem/datasets",
     "n_interactions_raw": 1132367,
@@ -140,67 +140,89 @@
     }
   },
   "hyperparams": {
-    "gmf_dim": 32,
-    "mlp_dim": 32,
+    "gmf_dim": 8,
+    "mlp_dim": 8,
     "mlp_layers": [
-      64,
-      32,
       16,
+      8,
+      8,
       8
     ],
     "negatives_per_positive": 4,
     "lr": 0.001,
+    "weight_decay": 0.0,
+    "dropout": 0.0,
     "batch_size": 4096,
-    "max_epochs": 30,
-    "patience": 3,
+    "max_epochs": 40,
+    "patience": 5,
     "val_sample_users": 5000,
     "pretraining": "none (simplification vs. He et al. 2017)",
     "score_user_batch": 32
   },
-  "best_epoch": 3,
-  "train_time_s": 47.89,
-  "score_ms_per_user": 1.0023,
+  "best_epoch": 5,
+  "train_time_s": 58.62,
+  "score_ms_per_user": 0.5446,
   "supports_strong": false,
   "training_history": [
     {
       "epoch": 1,
-      "loss": 0.47779,
-      "val_ndcg@20": 0.017623
+      "loss": 0.49641,
+      "val_ndcg@20": 0.016731
     },
     {
       "epoch": 2,
-      "loss": 0.421,
-      "val_ndcg@20": 0.017175
+      "loss": 0.42558,
+      "val_ndcg@20": 0.01784
     },
     {
       "epoch": 3,
-      "loss": 0.3861,
-      "val_ndcg@20": 0.018431
+      "loss": 0.40668,
+      "val_ndcg@20": 0.018809
     },
     {
       "epoch": 4,
-      "loss": 0.33821,
-      "val_ndcg@20": 0.018092
+      "loss": 0.38585,
+      "val_ndcg@20": 0.019029
     },
     {
       "epoch": 5,
-      "loss": 0.28573,
-      "val_ndcg@20": 0.018029
+      "loss": 0.36576,
+      "val_ndcg@20": 0.019635
     },
     {
       "epoch": 6,
-      "loss": 0.23949,
-      "val_ndcg@20": 0.017572
+      "loss": 0.34591,
+      "val_ndcg@20": 0.018981
+    },
+    {
+      "epoch": 7,
+      "loss": 0.32667,
+      "val_ndcg@20": 0.019107
+    },
+    {
+      "epoch": 8,
+      "loss": 0.30899,
+      "val_ndcg@20": 0.017145
+    },
+    {
+      "epoch": 9,
+      "loss": 0.29427,
+      "val_ndcg@20": 0.017746
+    },
+    {
+      "epoch": 10,
+      "loss": 0.28188,
+      "val_ndcg@20": 0.017265
     }
   ],
   "weak": {
     "n_users": 23363,
-    "recall@10": 0.026787,
-    "ndcg@10": 0.016208,
-    "recall@20": 0.043165,
-    "ndcg@20": 0.020984,
-    "coverage@20": 0.009928,
-    "covered_items@20": 396
+    "recall@10": 0.028062,
+    "ndcg@10": 0.016829,
+    "recall@20": 0.041926,
+    "ndcg@20": 0.020817,
+    "coverage@20": 0.011382,
+    "covered_items@20": 454
   },
   "strong": "N/A"
 }

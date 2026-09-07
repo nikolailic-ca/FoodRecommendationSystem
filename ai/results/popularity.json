@@ -2,7 +2,7 @@
   "model": "popularity",
   "display_name": "Popularity",
   "seed": 42,
-  "git_commit": "9e34808",
+  "git_commit": "e7e2272",
   "dataset_stats": {
     "datasets_dir": "/Users/dimitrijepavlovic/DzoniProjekat/FoodRecommendationSystem/datasets",
     "n_interactions_raw": 1132367,
@@ -144,7 +144,7 @@
   },
   "best_epoch": null,
   "train_time_s": 0.0,
-  "score_ms_per_user": 0.0021,
+  "score_ms_per_user": 0.002,
   "supports_strong": true,
   "training_history": [],
   "weak": {

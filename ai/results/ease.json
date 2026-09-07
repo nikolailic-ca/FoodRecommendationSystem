@@ -2,7 +2,7 @@
   "model": "ease",
   "display_name": "EASE",
   "seed": 42,
-  "git_commit": "f6a9924",
+  "git_commit": "e7e2272",
   "dataset_stats": {
     "datasets_dir": "/Users/dimitrijepavlovic/DzoniProjekat/FoodRecommendationSystem/datasets",
     "n_interactions_raw": 1132367,
@@ -147,7 +147,7 @@
   },
   "best_epoch": null,
   "train_time_s": 77.31,
-  "score_ms_per_user": 6.7024,
+  "score_ms_per_user": 7.514,
   "supports_strong": true,
   "training_history": [],
   "weak": {

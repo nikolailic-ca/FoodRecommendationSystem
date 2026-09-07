@@ -144,12 +144,12 @@ def train_full_model(model_key: str, args) -> Path:
     print(f"  sacuvano -> {directory}")
     print("=" * 68)
 
-    if model_key == "multvae":
+    if model_key in ("multvae", "multdae"):
         from foodrec.export import export_multvae
 
-        export_multvae(source=directory, seed=args.seed)
+        export_multvae(source=directory, seed=args.seed, model_key=model_key)
     else:
-        print(f"  (izvoz je definisan samo za multvae; {model_key} je sacuvan bez izvoza)")
+        print(f"  (izvoz je definisan za multvae/multdae; {model_key} je sacuvan bez izvoza)")
     return directory
 
 
