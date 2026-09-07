@@ -10,7 +10,9 @@ class Explanation(BaseModel):
 
     because_recipe_id: int
     because_recipe_name: str
-    because_rating: int
+    # None kada korisnik taj recept nije ocenio - frontend tada izostavlja
+    # deo recenice sa zvezdicama umesto da napise "0 stars".
+    because_rating: int | None
     similarity: float
 
 
@@ -25,5 +27,8 @@ class RecommendationItem(BaseModel):
 class RecommendationsResponse(BaseModel):
     # "mult_vae" kada je model ucitan i korisnik ima pozitivne ocene, inace "popularity".
     model: str
+    # Broj recepata koji prolaze filtere a korisnik ih jos nije ocenio. Znaci
+    # isto na obe putanje - model rangira samo podskup koji poznaje, ostatak
+    # stranice pokriva dopuna po popularnosti.
     total_candidates: int
     items: list[RecommendationItem]

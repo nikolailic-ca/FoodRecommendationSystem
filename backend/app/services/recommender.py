@@ -8,17 +8,19 @@ O modelu se pretpostavlja samo ono sto je dogovoreno sa AI workstream-om:
     recommender.item_index.ids            -> id-jevi recepata u katalogu modela
     recommender.score(positive_ids)       -> niz ocena poravnat sa item_index.ids
     recommender.explain(rec_id, rated_ids)-> objasnjenje ili None
+    recommender.similar(rec_id, n)        -> [(recipe_id, kosinus)] ili []
 
 Sve preko toga se hvata i pretvara u fallback, da neuskladjena verzija
 modela ne obori API.
 """
 
 import logging
+import math
 from collections.abc import Iterable, Sequence
 from typing import Any
 
 import numpy as np
-from sqlalchemy import Integer, all_, func, literal, select, text
+from sqlalchemy import Integer, all_, any_, func, literal, select, text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Session
 
@@ -44,7 +46,13 @@ MATCH_MAX = 99
 # Stavke iza prozora dobijaju fiksnu, vidno nizu vrednost.
 MATCH_TAIL = 55
 
-# Kategorije za onboarding - redosled odredjuje i prioritet kod dedupliciranja.
+# Kategorije za onboarding - redosled odredjuje i prioritet kod dedupliciranja
+# (DISTINCT ON dodeljuje recept najranije navedenoj kategoriji).
+#
+# "30-minutes-or-less" je namerno izbacen: stajao je ispred pizze, mexican,
+# asian i italian, pa je svaki brz recept iz tih kuhinja zavrsavao u kanti za
+# trajanje i praznio njihove bazene. Trajanje ionako ne nosi informaciju o
+# ukusu - services/text.py ga vec odbacuje kao beznacajan tag.
 ONBOARDING_CATEGORIES: tuple[str, ...] = (
     "chicken",
     "beef",
@@ -56,14 +64,16 @@ ONBOARDING_CATEGORIES: tuple[str, ...] = (
     "soups-stews",
     "salads",
     "breakfast",
-    "30-minutes-or-less",
     "pizza",
     "mexican",
     "asian",
     "italian",
 )
 ONBOARDING_POPULARITY_LIMIT = 5000
-ONBOARDING_PER_CATEGORY_POOL = 10
+# Bazen po kategoriji PRE presecanja sa katalogom modela. Namerno je siroko
+# postavljen: kada je bio 10, kategorija cijih je deset najpopularnijih recepata
+# van kataloga ostajala je bez ijedne kartice.
+ONBOARDING_PER_CATEGORY_POOL = 200
 ONBOARDING_PER_CATEGORY = 2
 
 
@@ -146,10 +156,26 @@ def _total_recipes(db: Session) -> int:
     return db.scalar(select(func.count()).select_from(Recipe)) or 0
 
 
-def _explanation_parts(raw: Any) -> tuple[int, float] | None:
-    """Svodi izlaz modela na (because_recipe_id, similarity).
+def _existing_recipe_count(db: Session, recipe_ids: Sequence[int]) -> int:
+    """Koliko od zadatih id-jeva zaista postoji u tabeli recipes."""
+    unique_ids = list(dict.fromkeys(recipe_ids))
+    if not unique_ids:
+        return 0
+    return (
+        db.scalar(
+            select(func.count())
+            .select_from(Recipe)
+            .where(Recipe.id == any_(literal(unique_ids, ARRAY(Integer))))
+        )
+        or 0
+    )
 
-    Prihvata dict ili par, jer `foodrec.serving` jos nije napisan.
+
+def _id_and_similarity(raw: Any) -> tuple[int, float] | None:
+    """Svodi par iz modela na (recipe_id, similarity).
+
+    Koriste ga i objasnjenja i lista slicnih recepata. Prihvata dict ili par,
+    jer se oblik koji `foodrec.serving` vraca menjao tokom razvoja.
     """
     if raw is None:
         return None
@@ -290,7 +316,7 @@ def _model_explanations(
 
     for recipe_id in recipe_ids:
         try:
-            parts = _explanation_parts(explain(int(recipe_id), list(rated_ids)))
+            parts = _id_and_similarity(explain(int(recipe_id), list(rated_ids)))
         except Exception:  # objasnjenje je ukras, ne sme da obori odgovor
             logger.warning("Neuspelo objasnjenje za recept %s", recipe_id, exc_info=True)
             continue
@@ -320,16 +346,35 @@ def _model_response(
         )
 
     allowed = _allowed_mask(db, ids=ids, filters=filters, rated_ids=rated_ids)
+
+    # NaN i +-inf se tretiraju kao da stavka nije dozvoljena. Inace: +inf razvuce
+    # min-max raspon u beskonacnost pa match_percent racuna round(nan) i puca,
+    # a NaN/-inf na dozvoljenoj stavci udje u telo odgovora, gde FastAPI
+    # serijalizuje sa allow_nan=False i vraca 500 koji try/except oko ove
+    # funkcije ne moze da uhvati (desava se posle povratka iz nje).
+    allowed &= np.isfinite(scores)
     scores[~allowed] = -np.inf
-    total_candidates = int(allowed.sum())
+
+    # Granice stranice moraju da dolaze iz ISTOG broja koji rangiranje koristi:
+    # posle maske i filtriranja nekonacnih ocena to je tacno duzina konacnog
+    # prefiksa niza `sorted_scores`. Ranije su granice dolazile iz allowed.sum(),
+    # pa su pozicije iza prefiksa hvatale bas one stavke koje je maska izbacila
+    # (vec ocenjene recepte).
+    ranked_count = int(allowed.sum())
+
+    # `total_candidates` znaci isto na obe putanje: koliko recepata prolazi
+    # filtere a korisnik ih jos nije ocenio. Model rangira samo podskup koji
+    # poznaje, ostatak stranice pokriva dopuna po popularnosti - zato se broj
+    # NE sme racunati iz kataloga modela.
+    total_candidates = count_candidates(db, candidate_query(db, exclude_user_id=user_id, **filters))
 
     # argsort nad -scores je rastuci po -score, tj. opadajuci po score;
     # -(-inf) = +inf, pa zabranjene stavke same padaju na kraj.
     order = np.argsort(-scores, kind="stable")
     sorted_scores = scores[order]
 
-    start = min(offset, total_candidates)
-    end = min(offset + n, total_candidates)
+    start = min(offset, ranked_count)
+    end = min(offset + n, ranked_count)
     page_positions = list(range(start, end))
     page_ids = [int(ids[order[position]]) for position in page_positions]
 
@@ -357,7 +402,9 @@ def _model_response(
                 explanation = {
                     "because_recipe_id": because.id,
                     "because_recipe_name": because.name,
-                    "because_rating": ratings.get(because.id, 0),
+                    # None, a ne 0: "Because you rated X 0 stars" nije recenica.
+                    # Model sme da predlozi recept koji korisnik nije ocenio.
+                    "because_rating": ratings.get(because.id),
                     "similarity": round(float(parts[1]), 6),
                 }
 
@@ -374,7 +421,15 @@ def _model_response(
     # popularnim receptima VAN kataloga modela, u istom obliku odgovora.
     missing = n - len(items)
     if missing > 0:
-        pad_offset = max(0, offset - total_candidates)
+        # Koliko je stavki iz modela vec izaslo na ranijim stranicama; sve
+        # ostalo do `offset` je bila dopuna, pa odatle nastavljamo. Ranije se
+        # racunalo samo iz `offset - total_candidates`, pa je svaka stranica
+        # koja izgubi recept (`recipe is None`) ponovo krenula od popularity
+        # offseta 0 i vratila iste recepte kao prethodna.
+        model_emitted = _existing_recipe_count(
+            db, [int(ids[order[position]]) for position in range(start)]
+        )
+        pad_offset = max(0, offset - model_emitted)
         pad_ids, ranks = _popularity_page(
             db,
             user_id=user_id,
@@ -459,42 +514,51 @@ def recommend_for_user(
 def similar_from_model(
     db: Session, *, recommender: Any, recipe_id: int, n: int
 ) -> list[dict] | None:
-    """Slicni recepti preko modela; None znaci "koristi tag fallback"."""
-    ids = _catalog_ids(recommender)
-    if ids is None:
+    """Slicni recepti preko modela; None znaci "koristi tag fallback".
+
+    Koristi se iskljucivo `recommender.similar(...)`, jedina metoda koja vraca
+    pravu kosinusnu slicnost nad ugradjenim vektorima recepata. Ranije se ovde
+    rangiralo preko `score()` pa se objavljivala `match_percent / 100`: to je
+    znacka iz opsega 60-99, dakle broj koji nikada ne pada ispod 0.6 i osmom
+    rezultatu od 40.000 daje "0.80". Tag fallback ispod vraca udeo zajednickih
+    tagova (0.2-1.0), pa su dve putanje objavljivale dve razlicite skale pod
+    istim imenom.
+    """
+    if recommender is None:
         return None
 
-    position = np.flatnonzero(ids == recipe_id)
-    if position.size == 0:
+    similar = getattr(recommender, "similar", None)
+    if similar is None:
+        logger.warning("Model nema metodu similar(); koristi se tag fallback.")
         return None
 
     try:
-        scores = np.asarray(recommender.score([int(recipe_id)]), dtype=float).ravel().copy()
-        if scores.shape[0] != ids.shape[0]:
-            return None
+        pairs = list(similar(int(recipe_id), n))
     except Exception:  # model je opcion, greska znaci fallback
-        logger.warning("Model nije uspeo da skoruje slicne za recept %s", recipe_id, exc_info=True)
+        logger.warning("Model nije uspeo da nadje slicne za recept %s", recipe_id, exc_info=True)
         return None
 
-    scores[position[0]] = -np.inf
+    neighbours: list[tuple[int, float]] = []
+    for raw in pairs:
+        parsed = _id_and_similarity(raw)
+        if parsed is None or parsed[0] == recipe_id or not math.isfinite(parsed[1]):
+            continue
+        neighbours.append(parsed)
 
-    order = np.argsort(-scores, kind="stable")
-    sorted_scores = scores[order]
-    positions = [p for p in range(min(n, ids.size)) if np.isfinite(sorted_scores[p])]
+    by_id = {
+        recipe.id: recipe for recipe in load_recipes_in_order(db, [rid for rid, _ in neighbours])
+    }
 
-    page_ids = [int(ids[order[p]]) for p in positions]
-    # Ista normalizacija kao za match_percent, samo skalirana na 0-1.
-    percents = match_percent_from_scores(sorted_scores, positions)
+    result = [
+        {"recipe": to_card(by_id[rid]), "similarity": round(similarity, 4)}
+        for rid, similarity in neighbours
+        if rid in by_id
+    ]
 
-    recipes = load_recipes_in_order(db, page_ids)
-    by_id = {recipe.id: recipe for recipe in recipes}
-
-    result = []
-    for recipe_id_out, percent in zip(page_ids, percents, strict=True):
-        recipe = by_id.get(recipe_id_out)
-        if recipe is not None:
-            result.append({"recipe": to_card(recipe), "similarity": round(percent / 100, 4)})
-    return result
+    # Prazna lista je isto razlog za fallback kao i None: katalog artefakta ume
+    # da odluta ispred baze, pa svi susedi otpadnu. Bez ovoga bi ruter praznu
+    # listu shvatio kao uspeh i tag fallback se nikada ne bi pokrenuo.
+    return result or None
 
 
 def similar_by_tags(db: Session, *, recipe: Recipe, n: int) -> list[dict]:
@@ -578,12 +642,44 @@ _ONBOARDING_SQL = text(
 )
 
 
-def build_onboarding_cards(db: Session, recommender: Any) -> list[dict]:
-    """Recepti za onboarding: 2 po kategoriji, isprepletani do 30 kartica.
+def _onboarding_top_up(
+    db: Session, *, already: Sequence[int], catalog: set[int] | None, needed: int
+) -> list[int]:
+    """Dopuna onboarding liste najpopularnijim receptima.
 
-    Kada je model ucitan, kandidati se suzavaju na katalog modela. Bez toga bi
-    onboarding ocene zavrsile na receptima koje model nikada nije video, pa bi
-    svaki novi korisnik zauvek ostao na popularity fallback-u.
+    Prvo se uzimaju recepti koje model poznaje: ocena na receptu van kataloga
+    ne pomera korisnika sa popularity fallback-a, pa mu onboarding ne bi vredeo.
+    """
+    seen = set(already)
+    pool = [
+        int(recipe_id)
+        for recipe_id in db.scalars(
+            select(Recipe.id).order_by(Recipe.popularity_rank).limit(ONBOARDING_POPULARITY_LIMIT)
+        ).all()
+    ]
+    known = pool if catalog is None else [rid for rid in pool if rid in catalog]
+
+    extra: list[int] = []
+    for source in (known, pool):
+        for recipe_id in source:
+            if len(extra) >= needed:
+                return extra
+            if recipe_id not in seen:
+                seen.add(recipe_id)
+                extra.append(recipe_id)
+    return extra
+
+
+def build_onboarding_cards(db: Session, recommender: Any) -> list[dict]:
+    """Recepti za onboarding: 2 po kategoriji, isprepletani.
+
+    Kada je model ucitan, kandidati se suzavaju na katalog modela PRE nego sto
+    se bazen presece na dve kartice. Ranije je SQL sekao na deset najpopularnijih
+    po kategoriji pa se tek onda radio presek, tako da kategorija cijih je svih
+    deset recepata van kataloga nije davala nijednu karticu.
+
+    Lista nikada nema manje od `settings.onboarding_min_ratings` kartica: ispod
+    toga nalog ne moze da zavrsi onboarding i guard ga trajno vraca sa /home.
     """
     rows = db.execute(
         _ONBOARDING_SQL,
@@ -598,13 +694,9 @@ def build_onboarding_cards(db: Session, recommender: Any) -> list[dict]:
     for recipe_id, tag in rows:
         pools[tag].append(int(recipe_id))
 
-    empty = [tag for tag, pool in pools.items() if not pool]
-    if empty:
-        logger.warning("Onboarding kategorije bez recepata u bazi: %s", ", ".join(empty))
-
     ids = _catalog_ids(recommender)
-    if ids is not None:
-        catalog = set(ids.tolist())
+    catalog = set(ids.tolist()) if ids is not None else None
+    if catalog is not None:
         pools = {tag: [i for i in pool if i in catalog] for tag, pool in pools.items()}
 
     chosen = {tag: pool[:ONBOARDING_PER_CATEGORY] for tag, pool in pools.items()}
@@ -617,7 +709,30 @@ def build_onboarding_cards(db: Session, recommender: Any) -> list[dict]:
             if slot < len(pool):
                 ordered_ids.append(pool[slot])
 
-    return [to_card(recipe) for recipe in load_recipes_in_order(db, ordered_ids)]
+    minimum = settings.onboarding_min_ratings
+    if len(ordered_ids) < minimum:
+        ordered_ids += _onboarding_top_up(
+            db, already=ordered_ids, catalog=catalog, needed=minimum - len(ordered_ids)
+        )
+
+    cards = [to_card(recipe) for recipe in load_recipes_in_order(db, ordered_ids)]
+
+    # Upozorenje se racuna nad onim sto se STVARNO vraca. Ranije je stajalo pre
+    # preseka sa katalogom, pa nikada nije prijavilo pravi manjak.
+    returned = {card["id"] for card in cards}
+    empty = [tag for tag in ONBOARDING_CATEGORIES if not returned.intersection(chosen[tag])]
+    if empty:
+        logger.warning("Onboarding kategorije bez ijedne kartice: %s", ", ".join(empty))
+
+    if len(cards) < minimum:
+        logger.error(
+            "Onboarding vraca %d kartica, a za zavrsetak je potrebno %d - "
+            "novi nalog nece moci da izadje sa onboarding ekrana.",
+            len(cards),
+            minimum,
+        )
+
+    return cards
 
 
 def missing_onboarding_tags(db: Session, categories: Iterable[str] | None = None) -> list[str]:
