@@ -3,7 +3,7 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.core.config import settings
@@ -90,7 +90,13 @@ app.include_router(catalog_router)
 app.include_router(recommendations_router)
 
 
-def _active_model(app: FastAPI) -> str:
+def _ranking_model(app: FastAPI) -> str:
+    """Model koji STVARNO rangira preporuke kada moze da personalizuje.
+
+    Ucitan artefakt nije isto sto i personalizovan odgovor: korisnik bez ijedne
+    pozitivne ocene iz kataloga modela uvek dobija popularity. Zato /health uz
+    ovo polje vraca i `model_loaded`, da se ta dva ne bi mesala.
+    """
     return MODEL_MULT_VAE if getattr(app.state, "recommender", None) else MODEL_POPULARITY
 
 
@@ -106,7 +112,13 @@ def root():
 
 
 @app.get("/health")
-def health():
+def health(response: Response):
+    """Provera zdravlja servisa.
+
+    Vraca 503 kada baza nije dostupna. Ranije je uvek vracala 200 i
+    `"status": "ok"`, pa je monitoring video zdrav servis dok je svaki
+    endpoint padao na 500.
+    """
     try:
         verify_database()
         db_status = "ok"
@@ -114,9 +126,14 @@ def health():
         # Health endpoint ne sme da pukne - greska se prijavljuje u odgovoru.
         logger.exception("Health check: baza nije dostupna")
         db_status = "error"
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
     return {
-        "status": "ok",
+        "status": "ok" if db_status == "ok" else "error",
         "db": db_status,
-        "model": _active_model(app),
+        # Da li je artefakt modela ucitan.
+        "model_loaded": getattr(app.state, "recommender", None) is not None,
+        # Model koji rangira preporuke korisniku sa bar jednom pozitivnom ocenom
+        # iz kataloga modela. Svaki drugi zahtev servira popularity.
+        "model": _ranking_model(app),
     }

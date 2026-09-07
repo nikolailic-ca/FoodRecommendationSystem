@@ -222,11 +222,16 @@ Provera da je sve zivo:
 
 ```bash
 curl http://127.0.0.1:8001/health
-# {"status":"ok","db":"ok","model":"popularity"}
+# {"status":"ok","db":"ok","model_loaded":false,"model":"popularity"}
 ```
 
-Polje `model` kaze sta se trenutno servira: `popularity` znaci da artefakt modela nije
-pronadjen, `mult_vae` da jeste.
+Kada baza nije dostupna, endpoint vraca HTTP 503 i `"status":"error"` - monitoring
+tako ne vidi zdrav servis dok svaki drugi endpoint puca.
+
+`model_loaded` kaze da li je artefakt modela ucitan. `model` kaze cime se rangiraju
+preporuke korisniku koji ima bar jednu pozitivnu ocenu iz kataloga modela. Ta dva nisu
+isto: i sa ucitanim artefaktom svaki tek registrovani nalog dobija `popularity`, sve dok
+ne oceni recept koji model poznaje.
 
 ---
 
