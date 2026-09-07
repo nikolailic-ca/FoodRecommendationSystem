@@ -12,8 +12,15 @@ import { RecipeMeta } from './RecipeMeta'
 import { StarRating } from './StarRating'
 import { TagChip } from './TagChip'
 
-/** How many tag chips fit on one line before the rest collapse into "+N". */
-const VISIBLE_TAGS = 3
+/**
+ * How many tag chips fit on one line before the rest collapse into "+N".
+ *
+ * Matched to `CARD_TAG_LIMIT` in `backend/app/services/recipes.py`, which is
+ * how many tags a card actually carries. Showing fewer than the API sends turns
+ * the last real tag into a "+1" that says nothing. The overflow chip below is
+ * kept as a guard in case that server limit ever rises.
+ */
+const VISIBLE_TAGS = 4
 
 export type RecipeCardVariant =
   | 'recommendation'
@@ -197,7 +204,12 @@ export function RecipeCard({
                 </div>
 
                 <p className="min-h-[35px] text-[12.5px] leading-[1.4] text-muted-foreground">
-                  {explanationName && explanationRating !== undefined ? (
+                  {/* `because_rating` defaults to 0 server-side when the model
+                      cannot name the rating behind a recommendation, and
+                      "because you rated X 0 stars" is not a sentence. */}
+                  {explanationName &&
+                  explanationRating !== undefined &&
+                  explanationRating > 0 ? (
                     <>
                       Because you rated{' '}
                       <span className="font-semibold text-foreground capitalize">
