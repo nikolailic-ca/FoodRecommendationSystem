@@ -110,7 +110,14 @@ export interface RatingMutationResult {
 
 export interface SimilarRecipe {
   recipe: RecipeCard
+  /** How close this recipe sits to the one being viewed. */
   similarity: number
+  /**
+   * How well it matches the signed-in user's taste, on the same scale as the
+   * badge on Home. Null when nobody is signed in, when the model is not
+   * loaded, or when the user has already rated the recipe.
+   */
+  match_percent: number | null
 }
 
 /* -------------------------------------------------------------------------- */

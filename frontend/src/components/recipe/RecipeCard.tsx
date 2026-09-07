@@ -31,7 +31,11 @@ export type RecipeCardVariant =
 interface RecipeCardProps {
   recipe: RecipeCardModel
   variant?: RecipeCardVariant
-  /** `recommendation` only: the orange badge and the "because you rated" line. */
+  /**
+   * The orange badge. Independent of the variant: it answers "how much will I
+   * like this", which is just as true in the similar-recipes row as it is on
+   * Home. The "because you rated" line below stays recommendation-only.
+   */
   matchPercent?: number
   explanationName?: string
   explanationRating?: number
@@ -109,7 +113,7 @@ export function RecipeCard({
           className="transition-transform duration-300 group-hover:scale-[1.03]"
         />
 
-        {variant === 'recommendation' && matchPercent !== undefined ? (
+        {matchPercent !== undefined ? (
           <MatchBadge value={matchPercent} className="absolute top-3 left-3" />
         ) : null}
 

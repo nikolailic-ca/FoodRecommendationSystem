@@ -511,6 +511,77 @@ def recommend_for_user(
 # --------------------------------------------------------------- slicni recepti
 
 
+def user_match_percents(
+    db: Session, *, recommender: Any, user_id: int, recipe_ids: Sequence[int]
+) -> dict[int, int]:
+    """Znacka "koliko ti se ovo poklapa" za proizvoljan skup recepata.
+
+    Racuna se iz ISTOG vektora ocena i kroz ISTU normalizaciju kao na pocetnoj
+    strani, pa su procenti uporedivi izmedju ekrana. Bez toga bi isti recept
+    mogao da pise 92% u preporukama i nesto drugo medju slicnim receptima.
+
+    Prazna mapa znaci "bez znacke", i to je normalno stanje, ne greska: model
+    nije ucitan, korisnik jos nema pozitivnu ocenu koju model poznaje, ili
+    nijedan trazeni recept nije u katalogu.
+
+    Vec ocenjeni recepti se namerno preskacu. Model ih je dobio na ulazu, pa im
+    je ocena visoka po konstrukciji - to nije predvidjanje nego odjek ulaza.
+    """
+    if recommender is None or not recipe_ids:
+        return {}
+
+    ids = _catalog_ids(recommender)
+    if ids is None:
+        return {}
+
+    rated_ids, positive_ids, _ = _user_ratings(db, user_id)
+    if not positive_ids:
+        return {}
+
+    mask = np.isin(np.asarray(positive_ids, dtype=ids.dtype), ids)
+    known_positive = [int(pid) for pid, keep in zip(positive_ids, mask, strict=True) if keep]
+    if not known_positive:
+        return {}
+
+    try:
+        scores = np.asarray(recommender.score(known_positive), dtype=float).ravel().copy()
+    except Exception:  # model je opcion; bez znacke je bolje nego 500
+        logger.warning("Model nije uspeo da oceni katalog za korisnika %s", user_id, exc_info=True)
+        return {}
+
+    if scores.shape[0] != ids.shape[0]:
+        logger.warning(
+            "Model je vratio %s ocena za katalog od %s recepata; znacka se preskace.",
+            scores.shape[0],
+            ids.shape[0],
+        )
+        return {}
+
+    # Ista maska kao u preporukama: nekonacne ocene i vec ocenjeni recepti ne
+    # smeju u prozor normalizacije, inace raspon postane beskonacan i round(nan)
+    # puca. Sortiranjem padaju na kraj, pa dobijaju MATCH_TAIL ako se ipak traze.
+    usable = np.isfinite(scores)
+    if rated_ids:
+        usable &= ~np.isin(ids, np.asarray(rated_ids, dtype=ids.dtype))
+    scores[~usable] = -np.inf
+
+    order = np.argsort(-scores, kind="stable")
+    sorted_scores = scores[order]
+    rank_of = {int(ids[index]): rank for rank, index in enumerate(order)}
+
+    rated_set = {int(recipe_id) for recipe_id in rated_ids}
+    wanted = [
+        recipe_id
+        for recipe_id in dict.fromkeys(int(value) for value in recipe_ids)
+        if recipe_id in rank_of and recipe_id not in rated_set
+    ]
+    if not wanted:
+        return {}
+
+    percents = match_percent_from_scores(sorted_scores, [rank_of[rid] for rid in wanted])
+    return dict(zip(wanted, percents, strict=True))
+
+
 def similar_from_model(
     db: Session, *, recommender: Any, recipe_id: int, n: int
 ) -> list[dict] | None:

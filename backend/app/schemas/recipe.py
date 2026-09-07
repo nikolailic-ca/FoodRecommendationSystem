@@ -64,3 +64,8 @@ class RecipeListResponse(BaseModel):
 class SimilarRecipe(BaseModel):
     recipe: RecipeCard
     similarity: float
+    # Koliko se recept poklapa sa ukusom PRIJAVLJENOG korisnika, isti opseg i
+    # ista normalizacija kao na pocetnoj strani. `similarity` je nesto drugo:
+    # blizina receptu koji se trenutno gleda. None znaci da znacke nema -
+    # anoniman zahtev, model nije ucitan, ili je korisnik recept vec ocenio.
+    match_percent: int | None = None

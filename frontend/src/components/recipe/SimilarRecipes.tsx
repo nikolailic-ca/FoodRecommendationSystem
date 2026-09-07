@@ -53,7 +53,7 @@ export function SimilarRecipes({
           You might also like
         </h2>
         <span className="text-[13.5px] font-medium text-muted-foreground">
-          Closest recipes by taste profile
+          Closest by taste, scored against yours
         </span>
       </div>
 
@@ -67,12 +67,16 @@ export function SimilarRecipes({
                 <RecipeCardSkeleton />
               </div>
             ))
-          : shown.map(({ recipe }) => (
+          : shown.map(({ recipe, match_percent }) => (
               <div
                 key={recipe.id}
                 className="w-[78vw] shrink-0 snap-start sm:w-auto"
               >
-                <RecipeCard recipe={recipe} variant="browse" />
+                <RecipeCard
+                  recipe={recipe}
+                  variant="browse"
+                  matchPercent={match_percent ?? undefined}
+                />
               </div>
             ))}
       </div>
