@@ -35,10 +35,21 @@ from foodrec.models.base import BaseModel, as_binary_csr
 _ROW_BUDGET = 2_000_000
 
 
+def default_layers(mlp_dim: int) -> tuple[int, ...]:
+    """Tower widths for a given embedding size: 2d -> d -> d/2 -> d/4.
+
+    The first entry MUST be 2 * mlp_dim, because the tower is fed
+    cat([mlp_user, mlp_item]).  With mlp_dim=32 this reproduces the paper's
+    (64, 32, 16, 8); sweeping the embedding down has to shrink the tower with it.
+    """
+    return tuple(max(1, 2 * mlp_dim // 2**i) for i in range(4))
+
+
 class NeuMFNet(nn.Module):
     def __init__(self, n_users: int, n_items: int, gmf_dim: int = 32, mlp_dim: int = 32,
-                 layers: tuple[int, ...] = (64, 32, 16, 8)) -> None:
+                 layers: tuple[int, ...] | None = None, dropout: float = 0.0) -> None:
         super().__init__()
+        layers = tuple(layers) if layers else default_layers(mlp_dim)
         self.gmf_user = nn.Embedding(n_users, gmf_dim)
         self.gmf_item = nn.Embedding(n_items, gmf_dim)
         self.mlp_user = nn.Embedding(n_users, mlp_dim)
@@ -48,6 +59,8 @@ class NeuMFNet(nn.Module):
         for in_dim, out_dim in itertools.pairwise(layers):
             tower.append(nn.Linear(in_dim, out_dim))
             tower.append(nn.ReLU())
+            if dropout > 0:
+                tower.append(nn.Dropout(dropout))
         self.mlp = nn.Sequential(*tower)
         self.out = nn.Linear(gmf_dim + layers[-1], 1)
 
@@ -71,16 +84,19 @@ class NeuMF(BaseModel):
     score_batch_size = 32
 
     def __init__(self, n_items: int, n_users: int = 0, gmf_dim: int = 32, mlp_dim: int = 32,
-                 layers: tuple[int, ...] = (64, 32, 16, 8), negatives: int = 4,
-                 lr: float = 1e-3, batch_size: int = 4096, max_epochs: int = 30,
+                 layers: tuple[int, ...] | None = None, negatives: int = 4,
+                 lr: float = 1e-3, weight_decay: float = 0.0, dropout: float = 0.0,
+                 batch_size: int = 4096, max_epochs: int = 30,
                  patience: int = 3, val_sample: int = 5000):
         super().__init__(n_items)
         self.n_users = int(n_users)
         self.gmf_dim = gmf_dim
         self.mlp_dim = mlp_dim
-        self.layers = tuple(layers)
+        self.layers = tuple(layers) if layers else default_layers(mlp_dim)
         self.negatives = negatives
         self.lr = lr
+        self.weight_decay = weight_decay
+        self.dropout = dropout
         self.batch_size = batch_size
         self.max_epochs = max_epochs
         self.patience = patience
@@ -111,8 +127,10 @@ class NeuMF(BaseModel):
         device = torch.device(device) if isinstance(device, str) else device
         self.device = device
         self.net = NeuMFNet(self.n_users, self.n_items, self.gmf_dim, self.mlp_dim,
-                            self.layers).to(device)
-        optimiser = torch.optim.Adam(self.net.parameters(), lr=self.lr)
+                            self.layers, self.dropout).to(device)
+        optimiser = torch.optim.Adam(
+            self.net.parameters(), lr=self.lr, weight_decay=self.weight_decay
+        )
         criterion = nn.BCEWithLogitsLoss()
 
         coo = binary.tocoo()
@@ -235,6 +253,8 @@ class NeuMF(BaseModel):
             "mlp_layers": list(self.layers),
             "negatives_per_positive": self.negatives,
             "lr": self.lr,
+            "weight_decay": self.weight_decay,
+            "dropout": self.dropout,
             "batch_size": self.batch_size,
             "max_epochs": self.max_epochs,
             "patience": self.patience,
@@ -259,11 +279,14 @@ class NeuMF(BaseModel):
             layers=tuple(hyper.get("mlp_layers", (64, 32, 16, 8))),
             negatives=hyper.get("negatives_per_positive", 4),
             lr=hyper.get("lr", 1e-3),
+            weight_decay=hyper.get("weight_decay", 0.0),
+            dropout=hyper.get("dropout", 0.0),
             batch_size=hyper.get("batch_size", 4096),
             max_epochs=hyper.get("max_epochs", 30),
             patience=hyper.get("patience", 3),
         )
-        model.net = NeuMFNet(n_users, meta["n_items"], model.gmf_dim, model.mlp_dim, model.layers)
+        model.net = NeuMFNet(n_users, meta["n_items"], model.gmf_dim, model.mlp_dim,
+                             model.layers, model.dropout)
         state = torch.load(directory / "model.pt", map_location="cpu", weights_only=True)
         model.net.load_state_dict(state)
         model.net.eval()
