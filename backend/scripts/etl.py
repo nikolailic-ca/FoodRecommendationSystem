@@ -8,6 +8,10 @@ Pokretanje iz korena projekta:
 
 Skripta je idempotentna: recepti se upsertuju (ON CONFLICT DO UPDATE), pa se
 ponovnim pokretanjem NE brisu korisnicke ocene i omiljeni recepti.
+
+`--limit N` je bezbedan i nad vec napunjenom bazom: sporedne tabele se brisu i
+pune samo za recepte koje je taj prolaz procitao, a `popularity_rank` se posle
+upserta racuna u SQL-u nad CELOM tabelom, pa ostaje globalno konzistentan.
 """
 
 from __future__ import annotations
@@ -194,13 +198,19 @@ def read_recipes(
     path: Path,
     ratings: dict[int, tuple[int, float]],
     limit: int | None = None,
-) -> tuple[list[dict], int]:
-    """Prolaz 2: parsira recepte i spaja ih sa agregatima ocena."""
+) -> tuple[list[dict], int, bool]:
+    """Prolaz 2: parsira recepte i spaja ih sa agregatima ocena.
+
+    Vraca (recepti, broj_neuspelih_literal_eval, da_li_je_fajl_odsecen).
+    Trece polje je True samo ako je `--limit` zaista prekinuo citanje pre kraja
+    fajla - o tome zavisi da li se sporedne tabele smeju brisati u celosti.
+    """
     print(f"[2/2] Citanje recepata: {path}")
 
     recipes: list[dict] = []
     eval_failures = 0
     read = 0
+    truncated = False
 
     with open(path, encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
@@ -239,8 +249,11 @@ def read_recipes(
                     "contributor_id": _to_int(row.get("contributor_id")),
                     "submitted": _to_date(row.get("submitted")),
                     "description": description,
-                    "n_steps": _to_int(row.get("n_steps")),
-                    "n_ingredients": _to_int(row.get("n_ingredients")),
+                    # Brojaci se izvode iz stvarno isparsiranih lista, a ne iz
+                    # CSV kolona: kada literal_eval pukne, lista je prazna, pa bi
+                    # kolona i dalje tvrdila "9 sastojaka" iznad praznog spiska.
+                    "n_steps": len(steps),
+                    "n_ingredients": len(ingredients),
                     "steps": [str(s) for s in steps],
                     "ingredients": [str(i) for i in ingredients],
                     "tags": [str(t) for t in tags],
@@ -254,14 +267,25 @@ def read_recipes(
                 print(f"      ...{read:,} recepata")
 
             if limit is not None and read >= limit:
+                # Fajl je odsecen samo ako iza ovog reda zaista jos ima redova.
+                truncated = next(reader, None) is not None
                 break
 
     print(f"      gotovo: {len(recipes):,} recepata, {eval_failures:,} neuspelih literal_eval")
-    return recipes, eval_failures
+    return recipes, eval_failures, truncated
 
 
 def assign_popularity_rank(recipes: list[dict]) -> None:
-    """Rangira recepte: prvo po broju ocena, pa po proseku, pa po id-u. Rank krece od 1."""
+    """Privremeni rank nad procitanim skupom - kolona je NOT NULL, pa novi
+    redovi moraju necim da udju u bazu.
+
+    Konacan, globalno konzistentan rank racuna `recompute_popularity_rank`
+    nad CELOM tabelom, posle upserta. Rangiranje samo nad procitanim skupom
+    bi kod `--limit N` prvih N recepata gurnulo na mesta 1..N i sudarilo ih sa
+    rangovima recepata koje ovaj prolaz nije ni video.
+
+    Poredak: prvo po broju ocena, pa po proseku, pa po id-u. Rank krece od 1.
+    """
     order = sorted(
         range(len(recipes)),
         key=lambda i: (
@@ -303,11 +327,16 @@ def load_recipes(conn: psycopg.Connection, recipes: list[dict]) -> None:
 
     Namerno se NE koristi TRUNCATE recipes CASCADE - to bi obrisalo
     user_ratings i user_favorites.
+
+    `popularity_rank` se namerno NE prepisuje pri UPDATE-u: vrednost iz
+    `assign_popularity_rank` vazi samo nad procitanim skupom i sluzi jedino da
+    novi redovi zadovolje NOT NULL. Konacan rang postavlja
+    `recompute_popularity_rank` nad celom tabelom.
     """
     print(f"      upis {len(recipes):,} recepata (staging + upsert)...")
 
     columns_sql = ", ".join(RECIPE_COLUMNS)
-    updatable = [c for c in RECIPE_COLUMNS if c != "id"]
+    updatable = [c for c in RECIPE_COLUMNS if c not in ("id", "popularity_rank")]
     update_sql = ", ".join(f"{c} = EXCLUDED.{c}" for c in updatable)
 
     with conn.cursor() as cur:
@@ -333,6 +362,35 @@ def load_recipes(conn: psycopg.Connection, recipes: list[dict]) -> None:
     print(f"      upsert-ovano {inserted:,} redova u recipes")
 
 
+def recompute_popularity_rank(conn: psycopg.Connection) -> None:
+    """Prenumeriše popularity_rank nad CELOM tabelom recipes, u SQL-u.
+
+    Rang mora da bude globalno konzistentan; racunanje nad podskupom (kod
+    `--limit`) davalo bi rangove 1..N koji se sudaraju sa netaknutim receptima i
+    cinilo `ORDER BY popularity_rank` nedeterministickim. Poredak je isti kao u
+    `assign_popularity_rank`: broj ocena, pa prosek (NULL = 0), pa id.
+    """
+    print("      prenumeracija popularity_rank nad celom tabelom...")
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            WITH ranked AS (
+                SELECT id,
+                       row_number() OVER (
+                           ORDER BY rating_count DESC, coalesce(avg_rating, 0) DESC, id
+                       ) AS rank
+                FROM recipes
+            )
+            UPDATE recipes r
+               SET popularity_rank = ranked.rank
+              FROM ranked
+             WHERE r.id = ranked.id
+               AND r.popularity_rank IS DISTINCT FROM ranked.rank
+            """
+        )
+        print(f"      popularity_rank promenjen za {cur.rowcount:,} recepata")
+
+
 def _ingredient_rows(batch: list[dict]) -> Iterator[tuple]:
     for recipe in batch:
         for position, raw in enumerate(recipe["ingredients"]):
@@ -350,13 +408,27 @@ def _tag_rows(batch: list[dict]) -> Iterator[tuple]:
                 yield (recipe["id"], tag)
 
 
-def load_side_tables(conn: psycopg.Connection, recipes: list[dict]) -> None:
-    """Puni recipe_ingredients / recipe_tags, pa iz njih gradi ingredients / tags."""
+def load_side_tables(conn: psycopg.Connection, recipes: list[dict], *, full_run: bool) -> None:
+    """Puni recipe_ingredients / recipe_tags, pa iz njih gradi ingredients / tags.
+
+    Kod delimicnog prolaza (`--limit`) brisu se SAMO redovi recepata koje je ovaj
+    prolaz zaista procitao. Ranije se brisala cela tabela, pa je posle punog
+    ucitavanja jedan `--limit 1000` ostavljao 230k recepata bez ijednog sastojka
+    i taga - filteri, autocomplete i onboarding bi tiho vracali prazno.
+    """
     print("      upis sporednih tabela (sastojci i tagovi)...")
 
     with conn.cursor() as cur:
-        # Ove tabele su potpuno izvedene iz dataseta - bezbedno je obrisati ih.
-        cur.execute("TRUNCATE recipe_ingredients, recipe_tags, ingredients, tags")
+        if full_run:
+            # Ceo fajl je procitan, pa je sadrzaj tabela ionako u celosti zamenjen.
+            cur.execute("TRUNCATE recipe_ingredients, recipe_tags")
+        else:
+            print(f"      delimican prolaz: brisem redove samo za {len(recipes):,} recepata")
+            ids = [recipe["id"] for recipe in recipes]
+            for start in range(0, len(ids), RECIPE_BATCH):
+                chunk = ids[start : start + RECIPE_BATCH]
+                cur.execute("DELETE FROM recipe_ingredients WHERE recipe_id = ANY(%s)", (chunk,))
+                cur.execute("DELETE FROM recipe_tags WHERE recipe_id = ANY(%s)", (chunk,))
 
         for start in range(0, len(recipes), RECIPE_BATCH):
             batch = recipes[start : start + RECIPE_BATCH]
@@ -374,6 +446,9 @@ def load_side_tables(conn: psycopg.Connection, recipes: list[dict]) -> None:
 
             print(f"      ...{min(start + RECIPE_BATCH, len(recipes)):,}/{len(recipes):,} recepata")
 
+        # ingredients / tags su cisti agregati nad CELIM sporednim tabelama,
+        # pa se posle upisa uvek grade iznova - i posle delimicnog prolaza.
+        cur.execute("TRUNCATE ingredients, tags")
         cur.execute(
             "INSERT INTO ingredients (name, display_name, recipe_count) "
             "SELECT ingredient_norm, min(ingredient), count(DISTINCT recipe_id) "
@@ -425,10 +500,16 @@ def run(recipes_path: Path, interactions_path: Path, limit: int | None) -> int:
     _require_csv(interactions_path, "RAW_interactions.csv")
 
     ratings = aggregate_interactions(interactions_path)
-    recipes, eval_failures = read_recipes(recipes_path, ratings, limit=limit)
+    recipes, eval_failures, truncated = read_recipes(recipes_path, ratings, limit=limit)
 
     if not recipes:
         raise EtlError("Nijedan recept nije procitan - proverite ulazni CSV fajl.")
+
+    if truncated:
+        print(
+            f"      NAPOMENA: --limit {limit} je odsekao fajl. Sporedne tabele se azuriraju "
+            "samo za ove recepte, ostatak baze ostaje netaknut."
+        )
 
     assign_popularity_rank(recipes)
 
@@ -443,7 +524,8 @@ def run(recipes_path: Path, interactions_path: Path, limit: int | None) -> int:
             cur.execute("SET synchronous_commit = off")
 
         load_recipes(conn, recipes)
-        load_side_tables(conn, recipes)
+        load_side_tables(conn, recipes, full_run=not truncated)
+        recompute_popularity_rank(conn)
         conn.commit()
 
         with conn.cursor() as cur:
