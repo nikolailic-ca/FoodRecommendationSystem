@@ -25,22 +25,33 @@ export interface RecommendationsPage {
 function flatten(
   data: InfiniteData<RecommendationResponse, number>,
 ): RecommendationsPage {
-  const firstPage = data.pages[0]
+  const items = data.pages.flatMap((page) => page.items)
+
+  // The newest page carries the freshest count — the pool shrinks as the user
+  // rates. It can never be smaller than what is already on screen, though:
+  // every loaded card is by definition a recipe that matched.
+  const latest = data.pages.at(-1)
 
   return {
-    items: data.pages.flatMap((page) => page.items),
-    total: firstPage?.total_candidates ?? 0,
-    model: firstPage?.model ?? null,
+    items,
+    total: Math.max(latest?.total_candidates ?? 0, items.length),
+    model: data.pages[0]?.model ?? null,
   }
 }
 
 /**
  * The recommendation grid, twelve at a time.
  *
- * The page cursor is the number of items already loaded, so `getNextPageParam`
- * simply stops once that reaches `total_candidates`. Filters are normalised
- * before they reach the query key, which keeps the cache from splitting over
- * cosmetic differences such as chip order or casing.
+ * `total_candidates` is the number of recipes that match the filters and are
+ * not yet rated, so the page cursor — the count of items already loaded — walks
+ * towards it and stops there. A short page is *not* an ending on its own: the
+ * model path pads its results out of a wider pool, so a page can come back
+ * under `n` with more still behind it. A page with nothing in it is the ending,
+ * and stopping on that is also what keeps the cursor from standing still and
+ * asking for the same offset forever.
+ *
+ * Filters are normalised before they reach the query key, which keeps the cache
+ * from splitting over cosmetic differences such as chip order or casing.
  */
 export function useRecommendations(filters: RecommendationFilters) {
   const normalized = useMemo(() => normalizeFilters(filters), [filters])
@@ -55,13 +66,13 @@ export function useRecommendations(filters: RecommendationFilters) {
       }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
-      const loaded = allPages.reduce((sum, page) => sum + page.items.length, 0)
-
-      if (loaded === 0 || loaded >= lastPage.total_candidates) {
+      if (lastPage.items.length === 0) {
         return undefined
       }
 
-      return loaded
+      const loaded = allPages.reduce((sum, page) => sum + page.items.length, 0)
+
+      return loaded >= lastPage.total_candidates ? undefined : loaded
     },
     select: flatten,
   })
