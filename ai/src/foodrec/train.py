@@ -32,10 +32,18 @@ def artifact_dir(model_key: str, full: bool = False) -> Path:
 
 def _model_kwargs(model_key: str, args) -> dict:
     kwargs: dict = {}
-    if model_key == "ease" and args.max_items is not None:
-        kwargs["max_items"] = args.max_items
-    if model_key == "itemknn" and args.knn_block is not None:
-        kwargs["block"] = args.knn_block
+    if model_key == "ease":
+        if args.max_items is not None:
+            kwargs["max_items"] = args.max_items
+        if args.ease_lambda is not None:
+            kwargs["reg"] = args.ease_lambda
+    if model_key == "itemknn":
+        if args.knn_block is not None:
+            kwargs["block"] = args.knn_block
+        if args.knn_k is not None:
+            kwargs["k"] = args.knn_k
+        if args.knn_shrinkage is not None:
+            kwargs["shrinkage"] = args.knn_shrinkage
     return kwargs
 
 
@@ -159,6 +167,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--max-items", type=int, default=None, help="Samo EASE: ogranicenje kataloga.")
     parser.add_argument("--knn-block", type=int, default=None, help="Samo ItemKNN: velicina bloka kolona.")
+    parser.add_argument("--knn-k", type=int, default=None, help="Samo ItemKNN: broj suseda.")
+    parser.add_argument("--knn-shrinkage", type=float, default=None, help="Samo ItemKNN: prigusenje.")
+    parser.add_argument("--ease-lambda", type=float, default=None, help="Samo EASE: regularizacija.")
     args = parser.parse_args(argv)
 
     config.ensure_dirs()
