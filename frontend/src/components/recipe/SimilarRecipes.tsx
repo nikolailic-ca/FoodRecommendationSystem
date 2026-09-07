@@ -53,7 +53,7 @@ export function SimilarRecipes({
           You might also like
         </h2>
         <span className="text-[13.5px] font-medium text-muted-foreground">
-          Closest by taste, scored against yours
+          Close to this dish, ranked for you
         </span>
       </div>
 

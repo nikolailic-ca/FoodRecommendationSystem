@@ -16,11 +16,7 @@ from backend.app.services.recipes import (
     to_detail,
     user_rating_map,
 )
-from backend.app.services.recommender import (
-    similar_by_tags,
-    similar_from_model,
-    user_match_percents,
-)
+from backend.app.services.recommender import similar_for_user
 
 router = APIRouter(prefix="/recipes", tags=["recipes"])
 
@@ -79,24 +75,9 @@ def read_similar(
             detail=f"Recipe {recipe_id} does not exist.",
         )
 
-    # Model se koristi samo ako je ucitan i ako recept postoji u njegovom katalogu.
+    # Red se sortira po mesavini dva signala: blizine gledanom receptu i ukusa
+    # prijavljenog korisnika. `similarity` u odgovoru je i dalje prava blizina,
+    # `match_percent` je licna znacka na istoj skali kao na pocetnoj strani.
+    # Anoniman zahtev dobija cistu blizinu.
     recommender = getattr(request.app.state, "recommender", None)
-    from_model = similar_from_model(db, recommender=recommender, recipe_id=recipe_id, n=n)
-    items = from_model if from_model is not None else similar_by_tags(db, recipe=recipe, n=n)
-
-    # Znacka poklapanja je odgovor na drugo pitanje od `similarity`: ne "koliko
-    # je ovo blizu receptu koji gledam" nego "koliko ce se MENI svideti". Zato
-    # se racuna iz ukusa prijavljenog korisnika, i to istom normalizacijom kao
-    # na pocetnoj, pa su procenti uporedivi izmedju ekrana. Vazi i za tag
-    # fallback: kako su susedi izabrani ne menja koliko odgovaraju korisniku.
-    if user is not None and items:
-        percents = user_match_percents(
-            db,
-            recommender=recommender,
-            user_id=user.id,
-            recipe_ids=[item["recipe"]["id"] for item in items],
-        )
-        for item in items:
-            item["match_percent"] = percents.get(item["recipe"]["id"])
-
-    return items
+    return similar_for_user(db, recommender=recommender, recipe=recipe, user=user, n=n)

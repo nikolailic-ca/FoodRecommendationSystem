@@ -511,6 +511,99 @@ def recommend_for_user(
 # --------------------------------------------------------------- slicni recepti
 
 
+# Koliko kandidata se povuce pre mesanja. Sirovih 8 suseda nije dovoljno da
+# ukus ima sta da preuredi, a ceo katalog bi pobrisao vezu sa gledanim receptom.
+SIMILAR_POOL = 300
+
+# Pola-pola. Merenja na punom skupu: na 0 sekcija je vezana za gledani recept
+# ali nema nista licno, na 1 se preklapa 7 od 8 sa pocetnom stranom, dakle
+# postaje njena kopija. Sredina je jedino mesto gde sekcija govori svoje.
+TASTE_WEIGHT = 0.5
+
+
+class _Taste:
+    """Vektor ocena modela za jednog korisnika, spreman i za znacku i za mesanje.
+
+    Postoji da bi se `recommender.score()` pozvao tacno jednom po zahtevu.
+    """
+
+    __slots__ = ("ids", "index_of", "rank_of", "rated", "scores", "sorted_scores")
+
+    def __init__(self, ids: np.ndarray, scores: np.ndarray, rated: set[int]) -> None:
+        self.ids = ids
+        self.scores = scores
+        self.rated = rated
+        order = np.argsort(-scores, kind="stable")
+        self.sorted_scores = scores[order]
+        # rank_of je mesto u sortiranoj listi (za znacku), index_of je mesto u
+        # katalogu (za sirovu ocenu). Mesanje to dvoje je tiha greska.
+        self.rank_of = {int(ids[index]): rank for rank, index in enumerate(order)}
+        self.index_of = {int(value): index for index, value in enumerate(ids)}
+
+    def raw_score(self, recipe_id: int) -> float:
+        index = self.index_of.get(int(recipe_id))
+        return -np.inf if index is None else float(self.scores[index])
+
+
+def _user_taste(db: Session, *, recommender: Any, user_id: int) -> _Taste | None:
+    """None znaci "nema licnog signala": model nije ucitan, ili korisnik nema
+    pozitivnu ocenu koju model poznaje. To je normalno stanje, ne greska."""
+    if recommender is None:
+        return None
+
+    ids = _catalog_ids(recommender)
+    if ids is None:
+        return None
+
+    rated_ids, positive_ids, _ = _user_ratings(db, user_id)
+    if not positive_ids:
+        return None
+
+    mask = np.isin(np.asarray(positive_ids, dtype=ids.dtype), ids)
+    known_positive = [int(pid) for pid, keep in zip(positive_ids, mask, strict=True) if keep]
+    if not known_positive:
+        return None
+
+    try:
+        scores = np.asarray(recommender.score(known_positive), dtype=float).ravel().copy()
+    except Exception:  # model je opcion; bez signala je bolje nego 500
+        logger.warning("Model nije uspeo da oceni katalog za korisnika %s", user_id, exc_info=True)
+        return None
+
+    if scores.shape[0] != ids.shape[0]:
+        logger.warning(
+            "Model je vratio %s ocena za katalog od %s recepata; licni signal se preskace.",
+            scores.shape[0],
+            ids.shape[0],
+        )
+        return None
+
+    # Ista maska kao u preporukama: nekonacne ocene i vec ocenjeni recepti ne
+    # smeju u prozor normalizacije, inace raspon postane beskonacan i round(nan)
+    # puca. Sortiranjem padaju na kraj, pa dobijaju MATCH_TAIL ako se ipak traze.
+    usable = np.isfinite(scores)
+    rated_set = {int(recipe_id) for recipe_id in rated_ids}
+    if rated_ids:
+        usable &= ~np.isin(ids, np.asarray(rated_ids, dtype=ids.dtype))
+    scores[~usable] = -np.inf
+
+    return _Taste(ids, scores, rated_set)
+
+
+def _percents_from_taste(taste: _Taste, recipe_ids: Sequence[int]) -> dict[int, int]:
+    wanted = [
+        recipe_id
+        for recipe_id in dict.fromkeys(int(value) for value in recipe_ids)
+        if recipe_id in taste.rank_of and recipe_id not in taste.rated
+    ]
+    if not wanted:
+        return {}
+    percents = match_percent_from_scores(
+        taste.sorted_scores, [taste.rank_of[rid] for rid in wanted]
+    )
+    return dict(zip(wanted, percents, strict=True))
+
+
 def user_match_percents(
     db: Session, *, recommender: Any, user_id: int, recipe_ids: Sequence[int]
 ) -> dict[int, int]:
@@ -520,66 +613,26 @@ def user_match_percents(
     strani, pa su procenti uporedivi izmedju ekrana. Bez toga bi isti recept
     mogao da pise 92% u preporukama i nesto drugo medju slicnim receptima.
 
-    Prazna mapa znaci "bez znacke", i to je normalno stanje, ne greska: model
-    nije ucitan, korisnik jos nema pozitivnu ocenu koju model poznaje, ili
-    nijedan trazeni recept nije u katalogu.
-
     Vec ocenjeni recepti se namerno preskacu. Model ih je dobio na ulazu, pa im
     je ocena visoka po konstrukciji - to nije predvidjanje nego odjek ulaza.
     """
-    if recommender is None or not recipe_ids:
+    if not recipe_ids:
         return {}
-
-    ids = _catalog_ids(recommender)
-    if ids is None:
+    taste = _user_taste(db, recommender=recommender, user_id=user_id)
+    if taste is None:
         return {}
+    return _percents_from_taste(taste, recipe_ids)
 
-    rated_ids, positive_ids, _ = _user_ratings(db, user_id)
-    if not positive_ids:
-        return {}
 
-    mask = np.isin(np.asarray(positive_ids, dtype=ids.dtype), ids)
-    known_positive = [int(pid) for pid, keep in zip(positive_ids, mask, strict=True) if keep]
-    if not known_positive:
-        return {}
-
-    try:
-        scores = np.asarray(recommender.score(known_positive), dtype=float).ravel().copy()
-    except Exception:  # model je opcion; bez znacke je bolje nego 500
-        logger.warning("Model nije uspeo da oceni katalog za korisnika %s", user_id, exc_info=True)
-        return {}
-
-    if scores.shape[0] != ids.shape[0]:
-        logger.warning(
-            "Model je vratio %s ocena za katalog od %s recepata; znacka se preskace.",
-            scores.shape[0],
-            ids.shape[0],
-        )
-        return {}
-
-    # Ista maska kao u preporukama: nekonacne ocene i vec ocenjeni recepti ne
-    # smeju u prozor normalizacije, inace raspon postane beskonacan i round(nan)
-    # puca. Sortiranjem padaju na kraj, pa dobijaju MATCH_TAIL ako se ipak traze.
-    usable = np.isfinite(scores)
-    if rated_ids:
-        usable &= ~np.isin(ids, np.asarray(rated_ids, dtype=ids.dtype))
-    scores[~usable] = -np.inf
-
-    order = np.argsort(-scores, kind="stable")
-    sorted_scores = scores[order]
-    rank_of = {int(ids[index]): rank for rank, index in enumerate(order)}
-
-    rated_set = {int(recipe_id) for recipe_id in rated_ids}
-    wanted = [
-        recipe_id
-        for recipe_id in dict.fromkeys(int(value) for value in recipe_ids)
-        if recipe_id in rank_of and recipe_id not in rated_set
-    ]
-    if not wanted:
-        return {}
-
-    percents = match_percent_from_scores(sorted_scores, [rank_of[rid] for rid in wanted])
-    return dict(zip(wanted, percents, strict=True))
+def _normalise(values: np.ndarray) -> np.ndarray:
+    """Min-max u 0-1 unutar bazena. Konstantan niz daje nule, ne deljenje nulom."""
+    if values.size == 0:
+        return values
+    low = float(values.min())
+    high = float(values.max())
+    if high <= low:
+        return np.zeros_like(values)
+    return (values - low) / (high - low)
 
 
 def similar_from_model(
@@ -675,6 +728,52 @@ def similar_by_tags(db: Session, *, recipe: Recipe, n: int) -> list[dict]:
         }
         for item in recipes
     ]
+
+
+def similar_for_user(
+    db: Session, *, recommender: Any, recipe: Recipe, user: User | None, n: int
+) -> list[dict]:
+    """Susedi gledanog recepta, poredjani po mesavini blizine i ukusa korisnika.
+
+    Dva signala odgovaraju na dva razlicita pitanja: `similarity` je "koliko je
+    ovo blizu jelu koje gledam", `match_percent` je "koliko ce se MENI svideti".
+    Red se sortira po pola-pola mesavini, pa sekcija istovremeno ostaje vezana
+    za gledano jelo i nosi licnu preporuku.
+
+    Anoniman zahtev i korisnik bez licnog signala dobijaju cistu blizinu, dakle
+    ponasanje kakvo je bilo i pre. Vazi za obe putanje: kako je sused izabran,
+    modelom ili preko tagova, ne menja koliko odgovara korisniku.
+    """
+    taste = None if user is None else _user_taste(db, recommender=recommender, user_id=user.id)
+
+    # Bez mesanja nema potrebe vuci bazen: osam suseda je i konacan odgovor.
+    pool = SIMILAR_POOL if taste is not None else n
+
+    items = similar_from_model(db, recommender=recommender, recipe_id=recipe.id, n=pool)
+    if items is None:
+        items = similar_by_tags(db, recipe=recipe, n=pool)
+
+    if taste is None or not items:
+        return items[:n]
+
+    # Vec ocenjeni recepti nose -inf i pokvarili bi normalizaciju, pa im se daje
+    # neutralna nula: ostaju u redu ako su dovoljno blizu, ali ih ukus ne dize.
+    raw = np.array([taste.raw_score(item["recipe"]["id"]) for item in items], dtype=float)
+    finite = np.isfinite(raw)
+    taste_norm = np.zeros(raw.shape, dtype=float)
+    if finite.any():
+        taste_norm[finite] = _normalise(raw[finite])
+
+    similarity_norm = _normalise(np.array([item["similarity"] for item in items], dtype=float))
+    blended = (1.0 - TASTE_WEIGHT) * similarity_norm + TASTE_WEIGHT * taste_norm
+
+    order = np.argsort(-blended, kind="stable")
+    ranked = [items[int(position)] for position in order[:n]]
+
+    percents = _percents_from_taste(taste, [item["recipe"]["id"] for item in ranked])
+    for item in ranked:
+        item["match_percent"] = percents.get(item["recipe"]["id"])
+    return ranked
 
 
 # --------------------------------------------------------------- onboarding

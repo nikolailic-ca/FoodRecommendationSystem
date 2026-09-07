@@ -110,7 +110,11 @@ export interface RatingMutationResult {
 
 export interface SimilarRecipe {
   recipe: RecipeCard
-  /** How close this recipe sits to the one being viewed. */
+  /**
+   * How close this recipe sits to the one being viewed. The row is ordered by
+   * an even blend of this and `match_percent`, so neither number alone
+   * explains the order.
+   */
   similarity: number
   /**
    * How well it matches the signed-in user's taste, on the same scale as the
