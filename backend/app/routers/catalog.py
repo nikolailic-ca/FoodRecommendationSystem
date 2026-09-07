@@ -7,12 +7,10 @@ from sqlalchemy import or_, select
 
 from backend.app.api.deps import DbSession
 from backend.app.db.models import Ingredient, Tag
-from backend.app.services.recipes import escape_like
+from backend.app.services.recipes import LIKE_ESCAPE, escape_like
 from backend.app.services.text import normalize_ingredient
 
 router = APIRouter(tags=["catalog"])
-
-LIKE_ESCAPE = "\\"
 
 
 @router.get("/ingredients", response_model=list[str], summary="Predlozi sastojaka")

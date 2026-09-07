@@ -16,14 +16,15 @@ CARD_TAG_LIMIT = 4
 DESCRIPTION_SHORT_LIMIT = 110
 
 # Znakovi koje LIKE/ILIKE tumaci kao dzokere - beze se pre ubacivanja u sablon.
-_LIKE_ESCAPE = "\\"
+# Javno je jer svaki `.like(..., escape=...)` mora da koristi bas ovaj znak.
+LIKE_ESCAPE = "\\"
 
 
 def escape_like(value: str) -> str:
     """Priprema korisnicki unos za LIKE sablon (escape za \\, % i _)."""
-    out = value.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2)
-    out = out.replace("%", f"{_LIKE_ESCAPE}%")
-    return out.replace("_", f"{_LIKE_ESCAPE}_")
+    out = value.replace(LIKE_ESCAPE, LIKE_ESCAPE * 2)
+    out = out.replace("%", f"{LIKE_ESCAPE}%")
+    return out.replace("_", f"{LIKE_ESCAPE}_")
 
 
 def short_description(description: str | None, limit: int = DESCRIPTION_SHORT_LIMIT) -> str:
@@ -39,18 +40,6 @@ def short_description(description: str | None, limit: int = DESCRIPTION_SHORT_LI
         cut = cut[:space]
 
     return cut.rstrip(" ,.;:-") + "…"
-
-
-def _all_tags(recipe: Recipe) -> list[str]:
-    """Svi tagovi recepta, mala slova, bez duplikata, u originalnom redosledu."""
-    result: list[str] = []
-    seen: set[str] = set()
-    for raw in recipe.tags or []:
-        tag = str(raw).strip().lower()
-        if tag and tag not in seen:
-            seen.add(tag)
-            result.append(tag)
-    return result
 
 
 def to_card(recipe: Recipe) -> dict:
@@ -89,7 +78,11 @@ def to_detail(recipe: Recipe, user_rating: int | None, is_favorite: bool) -> dic
         "description": recipe.description,
         "steps": [str(step) for step in recipe.steps or []],
         "ingredients": [str(item) for item in recipe.ingredients or []],
-        "tags": _all_tags(recipe),
+        # Isti filter kao na kartici, samo bez ogranicenja na cetiri taga.
+        # Sirovi tagovi bi ovde pocinjali strukturnim tagom ("course",
+        # "time-to-make"), pa bi frontend za isti recept birao jedan placeholder
+        # na mrezi a drugi na njegovoj stranici.
+        "tags": meaningful_tags(recipe.tags or [], limit=None),
         "nutrition": {
             "calories": recipe.calories,
             "total_fat_pdv": recipe.total_fat_pdv,
@@ -138,7 +131,7 @@ def candidate_query(
         term = query.strip()
         if term:
             # GIN trigram indeks nad recipes.name pokriva i '%...%' oblik.
-            stmt = stmt.where(Recipe.name.ilike(f"%{escape_like(term)}%", escape=_LIKE_ESCAPE))
+            stmt = stmt.where(Recipe.name.ilike(f"%{escape_like(term)}%", escape=LIKE_ESCAPE))
 
     if max_minutes is not None:
         stmt = stmt.where(Recipe.minutes.is_not(None), Recipe.minutes <= max_minutes)

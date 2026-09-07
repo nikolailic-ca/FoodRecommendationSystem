@@ -41,8 +41,12 @@ CARD_TAG_BLACKLIST: frozenset[str] = frozenset(
 _DURATION_TAG_RE = re.compile(r"^\d+-(minutes|hours)-or-less$")
 
 
-def meaningful_tags(tags: list[str], limit: int = 4) -> list[str]:
-    """Izdvaja tagove koji nose informaciju za prikaz na kartici recepta."""
+def meaningful_tags(tags: list[str], limit: int | None = 4) -> list[str]:
+    """Izdvaja tagove koji nose informaciju za prikaz na kartici recepta.
+
+    `limit=None` vraca sve takve tagove - koristi ga stranica recepta, da bi
+    prvi tag bio isti kao na kartici u mrezi.
+    """
     result: list[str] = []
     seen: set[str] = set()
 
@@ -61,7 +65,7 @@ def meaningful_tags(tags: list[str], limit: int = 4) -> list[str]:
         seen.add(normalized)
         result.append(normalized)
 
-        if len(result) >= limit:
+        if limit is not None and len(result) >= limit:
             break
 
     return result
