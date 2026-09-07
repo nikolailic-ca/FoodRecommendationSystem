@@ -72,9 +72,9 @@ def meaningful_tags(tags: list[str], limit: int = 4) -> list[str]:
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 
 # Nepravilna mnozina koja se ne resava opstim pravilima.
+# "tomatoes"/"potatoes" su namerno izbaceni - pokriva ih pravilo za -oes,
+# isto kao i "mangoes", "avocadoes" i ostale koje spisak nikada nije imao.
 _IRREGULAR_PLURALS: dict[str, str] = {
-    "tomatoes": "tomato",
-    "potatoes": "potato",
     "leaves": "leaf",
     "cookies": "cookie",
     "brownies": "brownie",
@@ -107,6 +107,14 @@ def _singularize(word: str) -> str:
     # berries -> berry (samo za duze reci, da "pies" ostane "pie" preko 's' pravila)
     if word.endswith("ies") and len(word) > 4:
         return word[:-3] + "y"
+
+    # mangoes -> mango, tomatoes -> tomato, echoes -> echo, buffaloes -> buffalo.
+    # Bez ovog pravila "es" nize hvata samo ch/sh/x/ss, pa bi "mangoes" palo na
+    # pravilo za golo 's' i zavrsilo kao "mangoe".
+    # Kratke reci na -oes su skoro uvek mnozina osnove na -oe (shoes, aloes,
+    # sloes, oboes) - njih namerno prepustamo pravilu za golo 's'.
+    if word.endswith("oes") and len(word) >= 6:
+        return word[:-2]
 
     # peaches -> peach, dishes -> dish, boxes -> box, glasses -> glass
     if word.endswith("es") and len(word) > 4:
