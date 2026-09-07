@@ -1,0 +1,171 @@
+{
+  "model": "itemknn",
+  "display_name": "ItemKNN",
+  "seed": 42,
+  "git_commit": "9e34808",
+  "dataset_stats": {
+    "datasets_dir": "/Users/dimitrijepavlovic/DzoniProjekat/FoodRecommendationSystem/datasets",
+    "n_interactions_raw": 1132367,
+    "n_interactions_in_catalog": 1132367,
+    "n_interactions_dedup": 1132367,
+    "n_catalog_recipes": 231637,
+    "n_rating_zero": 60847,
+    "rating_histogram": {
+      "0": 60847,
+      "1": 12818,
+      "2": 14123,
+      "3": 40855,
+      "4": 187360,
+      "5": 816364
+    },
+    "positive_threshold": 4,
+    "n_positives_before_kcore": 1003724,
+    "n_users_before_kcore": 180310,
+    "n_items_before_kcore": 217565,
+    "kcore": {
+      "min_user_positives": 3,
+      "min_item_positives": 5,
+      "iterations": 8,
+      "history": [
+        {
+          "iteration": 1,
+          "interactions": 1003724,
+          "users": 180310,
+          "items": 217565,
+          "dropped_users": 146902,
+          "dropped_items": 169640
+        },
+        {
+          "iteration": 2,
+          "interactions": 578371,
+          "users": 32955,
+          "items": 47764,
+          "dropped_users": 5711,
+          "dropped_items": 6935
+        },
+        {
+          "iteration": 3,
+          "interactions": 546096,
+          "users": 27231,
+          "items": 40829,
+          "dropped_users": 1103,
+          "dropped_items": 764
+        },
+        {
+          "iteration": 4,
+          "interactions": 540995,
+          "users": 26128,
+          "items": 40065,
+          "dropped_users": 139,
+          "dropped_items": 153
+        },
+        {
+          "iteration": 5,
+          "interactions": 540121,
+          "users": 25989,
+          "items": 39912,
+          "dropped_users": 26,
+          "dropped_items": 20
+        },
+        {
+          "iteration": 6,
+          "interactions": 539991,
+          "users": 25963,
+          "items": 39892,
+          "dropped_users": 4,
+          "dropped_items": 4
+        },
+        {
+          "iteration": 7,
+          "interactions": 539967,
+          "users": 25959,
+          "items": 39888,
+          "dropped_users": 0,
+          "dropped_items": 2
+        },
+        {
+          "iteration": 8,
+          "interactions": 539959,
+          "users": 25959,
+          "items": 39886,
+          "dropped_users": 0,
+          "dropped_items": 0
+        }
+      ]
+    },
+    "n_positives": 539959,
+    "n_users": 25959,
+    "n_items": 39886,
+    "density": 0.0005214976323262467,
+    "min_user_positives_final": 3,
+    "max_user_positives_final": 2765,
+    "mean_user_positives_final": 20.800454562964674,
+    "min_item_positives_final": 5,
+    "max_item_positives_final": 996,
+    "mean_item_positives_final": 13.537557037557038,
+    "build_seconds": 2.04
+  },
+  "split": {
+    "seed": 42,
+    "n_users": 25959,
+    "n_items": 39886,
+    "n_weak_users": 23363,
+    "n_strong_users": 2596,
+    "test_fraction": 0.2,
+    "val_fraction": 0.1,
+    "strong_user_fraction": 0.1,
+    "strong_fold_in_fraction": 0.8,
+    "nnz": {
+      "train": 328204,
+      "weak_val": 56651,
+      "weak_test": 99311,
+      "strong_input": 44356,
+      "strong_target": 11437
+    },
+    "check": {
+      "n_users": 25959,
+      "n_items": 39886,
+      "n_weak_users": 23363,
+      "n_strong_users": 2596,
+      "nnz": {
+        "train": 328204,
+        "weak_val": 56651,
+        "weak_test": 99311,
+        "strong_input": 44356,
+        "strong_target": 11437
+      },
+      "items_without_training_interaction": 98,
+      "items_without_training_interaction_pct": 0.2457,
+      "median_train_per_weak_user": 4.0
+    }
+  },
+  "hyperparams": {
+    "k": 1000,
+    "shrinkage": 500.0,
+    "gram_block": 4096,
+    "similarity": "cosine with shrinkage"
+  },
+  "best_epoch": null,
+  "train_time_s": 17.66,
+  "score_ms_per_user": 0.0886,
+  "supports_strong": true,
+  "training_history": [],
+  "weak": {
+    "n_users": 23363,
+    "recall@10": 0.025582,
+    "ndcg@10": 0.017326,
+    "recall@20": 0.038055,
+    "ndcg@20": 0.020977,
+    "coverage@20": 0.713859,
+    "covered_items@20": 28473
+  },
+  "strong": {
+    "n_users": 2596,
+    "recall@10": 0.027565,
+    "ndcg@10": 0.017801,
+    "recall@20": 0.043994,
+    "ndcg@20": 0.022562,
+    "coverage@20": 0.143785,
+    "covered_items@20": 5735
+  }
+}

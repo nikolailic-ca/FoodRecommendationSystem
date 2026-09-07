@@ -1,0 +1,360 @@
+{
+  "model": "multvae",
+  "display_name": "Mult-VAE",
+  "seed": 42,
+  "git_commit": "f6a9924",
+  "dataset_stats": {
+    "datasets_dir": "/Users/dimitrijepavlovic/DzoniProjekat/FoodRecommendationSystem/datasets",
+    "n_interactions_raw": 1132367,
+    "n_interactions_in_catalog": 1132367,
+    "n_interactions_dedup": 1132367,
+    "n_catalog_recipes": 231637,
+    "n_rating_zero": 60847,
+    "rating_histogram": {
+      "0": 60847,
+      "1": 12818,
+      "2": 14123,
+      "3": 40855,
+      "4": 187360,
+      "5": 816364
+    },
+    "positive_threshold": 4,
+    "n_positives_before_kcore": 1003724,
+    "n_users_before_kcore": 180310,
+    "n_items_before_kcore": 217565,
+    "kcore": {
+      "min_user_positives": 3,
+      "min_item_positives": 5,
+      "iterations": 8,
+      "history": [
+        {
+          "iteration": 1,
+          "interactions": 1003724,
+          "users": 180310,
+          "items": 217565,
+          "dropped_users": 146902,
+          "dropped_items": 169640
+        },
+        {
+          "iteration": 2,
+          "interactions": 578371,
+          "users": 32955,
+          "items": 47764,
+          "dropped_users": 5711,
+          "dropped_items": 6935
+        },
+        {
+          "iteration": 3,
+          "interactions": 546096,
+          "users": 27231,
+          "items": 40829,
+          "dropped_users": 1103,
+          "dropped_items": 764
+        },
+        {
+          "iteration": 4,
+          "interactions": 540995,
+          "users": 26128,
+          "items": 40065,
+          "dropped_users": 139,
+          "dropped_items": 153
+        },
+        {
+          "iteration": 5,
+          "interactions": 540121,
+          "users": 25989,
+          "items": 39912,
+          "dropped_users": 26,
+          "dropped_items": 20
+        },
+        {
+          "iteration": 6,
+          "interactions": 539991,
+          "users": 25963,
+          "items": 39892,
+          "dropped_users": 4,
+          "dropped_items": 4
+        },
+        {
+          "iteration": 7,
+          "interactions": 539967,
+          "users": 25959,
+          "items": 39888,
+          "dropped_users": 0,
+          "dropped_items": 2
+        },
+        {
+          "iteration": 8,
+          "interactions": 539959,
+          "users": 25959,
+          "items": 39886,
+          "dropped_users": 0,
+          "dropped_items": 0
+        }
+      ]
+    },
+    "n_positives": 539959,
+    "n_users": 25959,
+    "n_items": 39886,
+    "density": 0.0005214976323262467,
+    "min_user_positives_final": 3,
+    "max_user_positives_final": 2765,
+    "mean_user_positives_final": 20.800454562964674,
+    "min_item_positives_final": 5,
+    "max_item_positives_final": 996,
+    "mean_item_positives_final": 13.537557037557038,
+    "build_seconds": 2.04
+  },
+  "split": {
+    "seed": 42,
+    "n_users": 25959,
+    "n_items": 39886,
+    "n_weak_users": 23363,
+    "n_strong_users": 2596,
+    "test_fraction": 0.2,
+    "val_fraction": 0.1,
+    "strong_user_fraction": 0.1,
+    "strong_fold_in_fraction": 0.8,
+    "nnz": {
+      "train": 328204,
+      "weak_val": 56651,
+      "weak_test": 99311,
+      "strong_input": 44356,
+      "strong_target": 11437
+    },
+    "check": {
+      "n_users": 25959,
+      "n_items": 39886,
+      "n_weak_users": 23363,
+      "n_strong_users": 2596,
+      "nnz": {
+        "train": 328204,
+        "weak_val": 56651,
+        "weak_test": 99311,
+        "strong_input": 44356,
+        "strong_target": 11437
+      },
+      "items_without_training_interaction": 98,
+      "items_without_training_interaction_pct": 0.2457,
+      "median_train_per_weak_user": 4.0
+    }
+  },
+  "hyperparams": {
+    "variational": true,
+    "hidden": 600,
+    "latent": 200,
+    "dropout": 0.5,
+    "lr": 0.001,
+    "weight_decay": 0.0,
+    "batch_size": 500,
+    "max_epochs": 100,
+    "patience": 10,
+    "beta": 0.2,
+    "anneal_epochs": 20,
+    "loss": "multinomial log-likelihood + beta * KL"
+  },
+  "best_epoch": 20,
+  "train_time_s": 198.35,
+  "score_ms_per_user": 0.0617,
+  "supports_strong": true,
+  "training_history": [
+    {
+      "epoch": 1,
+      "loss": 27.71384,
+      "beta": 0.01,
+      "val_ndcg@20": 0.016456
+    },
+    {
+      "epoch": 2,
+      "loss": 26.49463,
+      "beta": 0.02,
+      "val_ndcg@20": 0.016408
+    },
+    {
+      "epoch": 3,
+      "loss": 26.3878,
+      "beta": 0.03,
+      "val_ndcg@20": 0.016328
+    },
+    {
+      "epoch": 4,
+      "loss": 26.30626,
+      "beta": 0.04,
+      "val_ndcg@20": 0.017435
+    },
+    {
+      "epoch": 5,
+      "loss": 26.16722,
+      "beta": 0.05,
+      "val_ndcg@20": 0.017628
+    },
+    {
+      "epoch": 6,
+      "loss": 25.97076,
+      "beta": 0.06,
+      "val_ndcg@20": 0.016491
+    },
+    {
+      "epoch": 7,
+      "loss": 25.71331,
+      "beta": 0.07,
+      "val_ndcg@20": 0.016222
+    },
+    {
+      "epoch": 8,
+      "loss": 25.39041,
+      "beta": 0.08,
+      "val_ndcg@20": 0.01559
+    },
+    {
+      "epoch": 9,
+      "loss": 25.08958,
+      "beta": 0.09,
+      "val_ndcg@20": 0.01576
+    },
+    {
+      "epoch": 10,
+      "loss": 24.76035,
+      "beta": 0.1,
+      "val_ndcg@20": 0.014911
+    },
+    {
+      "epoch": 11,
+      "loss": 24.47478,
+      "beta": 0.11,
+      "val_ndcg@20": 0.01586
+    },
+    {
+      "epoch": 12,
+      "loss": 24.19301,
+      "beta": 0.12,
+      "val_ndcg@20": 0.016109
+    },
+    {
+      "epoch": 13,
+      "loss": 23.98989,
+      "beta": 0.13,
+      "val_ndcg@20": 0.016312
+    },
+    {
+      "epoch": 14,
+      "loss": 23.77717,
+      "beta": 0.14,
+      "val_ndcg@20": 0.016361
+    },
+    {
+      "epoch": 15,
+      "loss": 23.63067,
+      "beta": 0.15,
+      "val_ndcg@20": 0.016676
+    },
+    {
+      "epoch": 16,
+      "loss": 23.52029,
+      "beta": 0.16,
+      "val_ndcg@20": 0.016569
+    },
+    {
+      "epoch": 17,
+      "loss": 23.45419,
+      "beta": 0.17,
+      "val_ndcg@20": 0.017657
+    },
+    {
+      "epoch": 18,
+      "loss": 23.35622,
+      "beta": 0.18,
+      "val_ndcg@20": 0.017437
+    },
+    {
+      "epoch": 19,
+      "loss": 23.31798,
+      "beta": 0.19,
+      "val_ndcg@20": 0.017337
+    },
+    {
+      "epoch": 20,
+      "loss": 23.3056,
+      "beta": 0.2,
+      "val_ndcg@20": 0.018388
+    },
+    {
+      "epoch": 21,
+      "loss": 23.24571,
+      "beta": 0.2,
+      "val_ndcg@20": 0.01794
+    },
+    {
+      "epoch": 22,
+      "loss": 23.13204,
+      "beta": 0.2,
+      "val_ndcg@20": 0.017952
+    },
+    {
+      "epoch": 23,
+      "loss": 23.02175,
+      "beta": 0.2,
+      "val_ndcg@20": 0.018028
+    },
+    {
+      "epoch": 24,
+      "loss": 22.90653,
+      "beta": 0.2,
+      "val_ndcg@20": 0.01769
+    },
+    {
+      "epoch": 25,
+      "loss": 22.8078,
+      "beta": 0.2,
+      "val_ndcg@20": 0.017931
+    },
+    {
+      "epoch": 26,
+      "loss": 22.69407,
+      "beta": 0.2,
+      "val_ndcg@20": 0.017538
+    },
+    {
+      "epoch": 27,
+      "loss": 22.57035,
+      "beta": 0.2,
+      "val_ndcg@20": 0.018004
+    },
+    {
+      "epoch": 28,
+      "loss": 22.51998,
+      "beta": 0.2,
+      "val_ndcg@20": 0.01767
+    },
+    {
+      "epoch": 29,
+      "loss": 22.4398,
+      "beta": 0.2,
+      "val_ndcg@20": 0.017317
+    },
+    {
+      "epoch": 30,
+      "loss": 22.40835,
+      "beta": 0.2,
+      "val_ndcg@20": 0.018182
+    }
+  ],
+  "weak": {
+    "n_users": 23363,
+    "recall@10": 0.025814,
+    "ndcg@10": 0.01567,
+    "recall@20": 0.041153,
+    "ndcg@20": 0.020045,
+    "coverage@20": 0.282856,
+    "covered_items@20": 11282
+  },
+  "strong": {
+    "n_users": 2596,
+    "recall@10": 0.032915,
+    "ndcg@10": 0.021221,
+    "recall@20": 0.048179,
+    "ndcg@20": 0.025582,
+    "coverage@20": 0.024194,
+    "covered_items@20": 965
+  }
+}
