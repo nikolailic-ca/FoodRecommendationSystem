@@ -47,5 +47,8 @@ dev = [
 default-groups = ["backend", "dev"]
 
 [tool.ruff]
+# Istrazivacki notebook-i su sacuvani kao trag rada, ne kao kod koji se odrzava.
+# U njima su i greske koje rad opisuje kao nalaz, pa se ne ispravljaju.
+extend-exclude = ["ai/notebooks"]
 line-length = 100
 target-version = "py312"
