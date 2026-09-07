@@ -1,5 +1,5 @@
 import { Search } from 'lucide-react'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 
 import {
   Select,
@@ -49,6 +49,11 @@ export function FilterFields({
   layout,
   onSubmit,
 }: FilterFieldsProps) {
+  // The desktop bar and the mobile sheet are both mounted at all times — the
+  // bar is only hidden with CSS — so a fixed id would have the sheet's label
+  // point at the invisible input in the bar.
+  const searchId = useId()
+
   const [ingredientQuery, setIngredientQuery] = useState('')
   const [tagQuery, setTagQuery] = useState('')
 
@@ -66,7 +71,7 @@ export function FilterFields({
       <div className={isBar ? 'flex-1' : 'w-full'}>
         {!isBar ? (
           <label
-            htmlFor="filter-search"
+            htmlFor={searchId}
             className="mb-1.5 block text-[13px] font-bold"
           >
             Search
@@ -77,7 +82,7 @@ export function FilterFields({
           <Search className="pointer-events-none absolute top-1/2 left-3 size-[17px] -translate-y-1/2 text-muted-foreground" />
 
           <input
-            id="filter-search"
+            id={searchId}
             type="search"
             value={value.query}
             placeholder="Search recipes"

@@ -32,6 +32,19 @@ interface SuggestComboboxProps {
 }
 
 /**
+ * The stored form of a filter value.
+ *
+ * Suggestions arrive in the dataset's own casing — `/ingredients` returns
+ * `min(ingredient)` over the raw Food.com text, and ASCII sorts "Butter" before
+ * "butter" — while the filters keep everything lowercase so the URL and the
+ * query key stay canonical. Selecting and testing must therefore both go
+ * through here, otherwise a suggestion can never match the value it created.
+ */
+function normalize(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+/**
  * Multi-select over a server-side suggestion list.
  *
  * `shouldFilter` is off: the matching happens in Postgres, and cmdk filtering
@@ -52,8 +65,12 @@ export function SuggestCombobox({
 }: SuggestComboboxProps) {
   const [open, setOpen] = useState(false)
 
+  function isSelected(value: string): boolean {
+    return values.includes(normalize(value))
+  }
+
   function toggleValue(value: string) {
-    const normalized = value.trim().toLowerCase()
+    const normalized = normalize(value)
 
     onChange(
       values.includes(normalized)
@@ -141,12 +158,12 @@ export function SuggestCombobox({
                       <span
                         className={cn(
                           'flex size-4 shrink-0 items-center justify-center rounded border',
-                          values.includes(suggestion)
+                          isSelected(suggestion)
                             ? 'border-primary bg-primary text-primary-foreground'
                             : 'border-border',
                         )}
                       >
-                        {values.includes(suggestion) ? (
+                        {isSelected(suggestion) ? (
                           <Check className="size-3" />
                         ) : null}
                       </span>
