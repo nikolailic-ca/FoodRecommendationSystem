@@ -42,8 +42,9 @@ class EASE(BaseModel):
     display_name = "EASE"
     supports_strong = True
 
-    def __init__(self, n_items: int, reg: float = 5000.0, max_items: int | None = None,
-                 block: int = 4096):
+    def __init__(
+        self, n_items: int, reg: float = 5000.0, max_items: int | None = None, block: int = 4096
+    ):
         super().__init__(n_items)
         self.reg = float(reg)
         self.max_items = max_items
@@ -51,8 +52,18 @@ class EASE(BaseModel):
         self.weights: np.ndarray | None = None  # (m, m) float32, m = len(selected)
         self.selected: np.ndarray | None = None  # None means "the whole catalog"
 
-    def fit(self, train, *, val_input=None, val_target=None, val_users=None,
-            seed=42, device="cpu", verbose=True, max_epochs=None):
+    def fit(
+        self,
+        train,
+        *,
+        val_input=None,
+        val_target=None,
+        val_users=None,
+        seed=42,
+        device="cpu",
+        verbose=True,
+        max_epochs=None,
+    ):
         binary = as_binary_csr(train)
 
         if self.max_items is not None and self.max_items < self.n_items:
@@ -71,7 +82,7 @@ class EASE(BaseModel):
         # Fortran order matters: scipy.linalg.inv only honours overwrite_a on a
         # column-major buffer, otherwise it copies and the peak doubles to 14 GB.
         # G is symmetric, so column-major also makes the block writes contiguous.
-        gram = np.zeros((m, m), dtype=np.float32, order='F')
+        gram = np.zeros((m, m), dtype=np.float32, order="F")
         for start, stop, block_values in iter_gram_blocks(binary, self.block):
             gram[:, start:stop] = block_values
             if verbose:
@@ -127,8 +138,12 @@ class EASE(BaseModel):
     @classmethod
     def _load_arrays(cls, directory: Path, meta: dict) -> EASE:
         hyper = meta.get("hyperparams", {})
-        model = cls(meta["n_items"], reg=hyper.get("lambda", 500.0),
-                    max_items=hyper.get("max_items"), block=hyper.get("gram_block", 4096))
+        model = cls(
+            meta["n_items"],
+            reg=hyper.get("lambda", 500.0),
+            max_items=hyper.get("max_items"),
+            block=hyper.get("gram_block", 4096),
+        )
         model.weights = np.load(directory / "weights.npy").astype(np.float32)
         selected_path = directory / "selected.npy"
         model.selected = np.load(selected_path) if selected_path.exists() else None

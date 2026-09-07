@@ -92,9 +92,7 @@ def evaluate_model(model_key: str, splits: Splits, verbose: bool = True) -> dict
         "git_commit": config.git_commit(),
         "dataset_stats": splits.meta.get("dataset_stats", {}),
         "split": {
-            key: value
-            for key, value in splits.meta.items()
-            if key not in ("dataset_stats",)
+            key: value for key, value in splits.meta.items() if key not in ("dataset_stats",)
         },
         "hyperparams": meta.get("hyperparams", {}),
         "best_epoch": meta.get("best_epoch"),
@@ -162,7 +160,9 @@ def render_summary(results: dict[str, dict]) -> str:
     lines.append("")
     lines.append("## Weak generalizacija (primarni pogled)")
     lines.append("")
-    lines.append("Svi korisnici su u treningu; 20% njihovih pozitivnih interakcija je izdvojeno za test.")
+    lines.append(
+        "Svi korisnici su u treningu; 20% njihovih pozitivnih interakcija je izdvojeno za test."
+    )
     lines.append("")
     lines.append("| Model | Recall@10 | Recall@20 | NDCG@10 | NDCG@20 | Coverage@20 |")
     lines.append("|---|---|---|---|---|---|")

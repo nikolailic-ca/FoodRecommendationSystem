@@ -36,16 +36,25 @@ class ItemKNN(BaseModel):
     display_name = "ItemKNN"
     supports_strong = True
 
-    def __init__(self, n_items: int, k: int = 1000, shrinkage: float = 500.0,
-                 block: int = 4096):
+    def __init__(self, n_items: int, k: int = 1000, shrinkage: float = 500.0, block: int = 4096):
         super().__init__(n_items)
         self.k = int(k)
         self.shrinkage = float(shrinkage)
         self.block = int(block)
         self.similarity: csr_array | None = None
 
-    def fit(self, train, *, val_input=None, val_target=None, val_users=None,
-            seed=42, device="cpu", verbose=True, max_epochs=None):
+    def fit(
+        self,
+        train,
+        *,
+        val_input=None,
+        val_target=None,
+        val_users=None,
+        seed=42,
+        device="cpu",
+        verbose=True,
+        max_epochs=None,
+    ):
         binary = as_binary_csr(train)
         n_items = self.n_items
         popularity = np.asarray(binary.sum(axis=0), dtype=np.float32).ravel()
@@ -102,8 +111,12 @@ class ItemKNN(BaseModel):
         return np.asarray(scores.todense() if hasattr(scores, "todense") else scores, np.float32)
 
     def hyperparams(self) -> dict:
-        return {"k": self.k, "shrinkage": self.shrinkage, "gram_block": self.block,
-                "similarity": "cosine with shrinkage"}
+        return {
+            "k": self.k,
+            "shrinkage": self.shrinkage,
+            "gram_block": self.block,
+            "similarity": "cosine with shrinkage",
+        }
 
     def _save_arrays(self, directory: Path) -> None:
         np.savez_compressed(

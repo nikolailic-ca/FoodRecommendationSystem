@@ -59,9 +59,7 @@ class _Accumulator:
         for k in self.ks:
             out[f"recall@{k}"] = round(self.recall[k] / self.n_users, 6)
             out[f"ndcg@{k}"] = round(self.ndcg[k] / self.n_users, 6)
-        out[f"coverage@{self.coverage_k}"] = round(
-            float(self.covered.sum()) / self.n_items, 6
-        )
+        out[f"coverage@{self.coverage_k}"] = round(float(self.covered.sum()) / self.n_items, 6)
         out[f"covered_items@{self.coverage_k}"] = int(self.covered.sum())
         return out
 

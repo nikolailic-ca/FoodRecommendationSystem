@@ -81,8 +81,10 @@ def train_split_model(model_key: str, args) -> Path:
     )
     if model_key == "ease":
         gigabytes = splits.n_items * splits.n_items * 4 / 2**30
-        print(f"  UPOZORENJE: EASE alocira gustu matricu ~{gigabytes:.1f} GB "
-              f"(vrhunac ~{gigabytes * 1.3:.1f} GB). Ne pokretati uz MPS posao.")
+        print(
+            f"  UPOZORENJE: EASE alocira gustu matricu ~{gigabytes:.1f} GB "
+            f"(vrhunac ~{gigabytes * 1.3:.1f} GB). Ne pokretati uz MPS posao."
+        )
 
     model = build_model(model_key, splits.n_items, **_model_kwargs(model_key, args))
     started = time.perf_counter()
@@ -155,7 +157,8 @@ def train_full_model(model_key: str, args) -> Path:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="python -m foodrec.train", description="Treniranje jednog modela na zajednickoj podeli."
+        prog="python -m foodrec.train",
+        description="Treniranje jednog modela na zajednickoj podeli.",
     )
     parser.add_argument("--model", required=True, choices=list(MODEL_KEYS))
     parser.add_argument("--device", default="auto", choices=["auto", "cpu", "mps"])
@@ -165,11 +168,19 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Refit na svim pozitivnim interakcijama za zabelezeni broj epoha, pa izvoz.",
     )
-    parser.add_argument("--max-items", type=int, default=None, help="Samo EASE: ogranicenje kataloga.")
-    parser.add_argument("--knn-block", type=int, default=None, help="Samo ItemKNN: velicina bloka kolona.")
+    parser.add_argument(
+        "--max-items", type=int, default=None, help="Samo EASE: ogranicenje kataloga."
+    )
+    parser.add_argument(
+        "--knn-block", type=int, default=None, help="Samo ItemKNN: velicina bloka kolona."
+    )
     parser.add_argument("--knn-k", type=int, default=None, help="Samo ItemKNN: broj suseda.")
-    parser.add_argument("--knn-shrinkage", type=float, default=None, help="Samo ItemKNN: prigusenje.")
-    parser.add_argument("--ease-lambda", type=float, default=None, help="Samo EASE: regularizacija.")
+    parser.add_argument(
+        "--knn-shrinkage", type=float, default=None, help="Samo ItemKNN: prigusenje."
+    )
+    parser.add_argument(
+        "--ease-lambda", type=float, default=None, help="Samo EASE: regularizacija."
+    )
     args = parser.parse_args(argv)
 
     config.ensure_dirs()

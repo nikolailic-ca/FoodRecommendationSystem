@@ -23,8 +23,18 @@ class Popularity(BaseModel):
         super().__init__(n_items)
         self.counts = np.zeros(n_items, dtype=np.float32)
 
-    def fit(self, train, *, val_input=None, val_target=None, val_users=None,
-            seed=42, device="cpu", verbose=True, max_epochs=None):
+    def fit(
+        self,
+        train,
+        *,
+        val_input=None,
+        val_target=None,
+        val_users=None,
+        seed=42,
+        device="cpu",
+        verbose=True,
+        max_epochs=None,
+    ):
         binary = as_binary_csr(train)
         # Number of distinct training users with a positive for each item.
         self.counts = np.asarray(binary.sum(axis=0), dtype=np.float32).ravel()

@@ -165,8 +165,10 @@ def _pick_source(model_key: str = "multvae") -> Path:
         return full
     split = artifact_dir(model_key)
     if (split / "meta.json").exists():
-        print("  UPOZORENJE: koristi se model treniran samo na podeli "
-              "(pokrenite --full za finalni model).")
+        print(
+            "  UPOZORENJE: koristi se model treniran samo na podeli "
+            "(pokrenite --full za finalni model)."
+        )
         return split
     raise SystemExit(
         f"GRESKA: {model_key} nije istreniran.\n"
@@ -191,9 +193,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seed", type=int, default=config.SEED)
     args = parser.parse_args(argv)
 
-    export_multvae(
-        source=args.source, destination=args.dest, seed=args.seed, model_key=args.model
-    )
+    export_multvae(source=args.source, destination=args.dest, seed=args.seed, model_key=args.model)
     return 0
 
 

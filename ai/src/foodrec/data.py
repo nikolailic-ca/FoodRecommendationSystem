@@ -291,8 +291,7 @@ def load_positives() -> PositiveData:
     """Load the cached, already-encoded positives.  Fails loudly if absent."""
     if not config.POSITIVES_NPZ.exists() or not config.INDEX_JSON.exists():
         raise SystemExit(
-            "GRESKA: obradjeni podaci ne postoje.\n"
-            "Pokrenite prvo: uv run python -m foodrec.data"
+            "GRESKA: obradjeni podaci ne postoje.\nPokrenite prvo: uv run python -m foodrec.data"
         )
     users, items = load_index_pair(config.INDEX_JSON)
     with np.load(config.POSITIVES_NPZ) as payload:
@@ -301,7 +300,9 @@ def load_positives() -> PositiveData:
 
     # Cheap but decisive guard: no index may point outside the frozen mapping.
     if user_idx.size and (user_idx.max() >= len(users) or item_idx.max() >= len(items)):
-        raise SystemExit("GRESKA: kesirani indeksi ne odgovaraju index.json - obrisite ai/data/processed/.")
+        raise SystemExit(
+            "GRESKA: kesirani indeksi ne odgovaraju index.json - obrisite ai/data/processed/."
+        )
 
     stats = {}
     if config.STATS_JSON.exists():

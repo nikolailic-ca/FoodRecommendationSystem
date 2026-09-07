@@ -28,14 +28,55 @@ from pathlib import Path
 import numpy as np
 
 INGREDIENTS = [
-    "chicken", "beef", "pork", "salmon", "tofu", "rice", "pasta", "potato", "onion", "garlic",
-    "tomato", "basil", "olive oil", "butter", "flour", "sugar", "eggs", "milk", "cheese",
-    "chocolate", "vanilla", "cinnamon", "paprika", "cumin", "lemon", "lime", "soy sauce",
-    "ginger", "spinach", "mushrooms", "carrots", "beans", "yogurt", "honey", "walnuts",
+    "chicken",
+    "beef",
+    "pork",
+    "salmon",
+    "tofu",
+    "rice",
+    "pasta",
+    "potato",
+    "onion",
+    "garlic",
+    "tomato",
+    "basil",
+    "olive oil",
+    "butter",
+    "flour",
+    "sugar",
+    "eggs",
+    "milk",
+    "cheese",
+    "chocolate",
+    "vanilla",
+    "cinnamon",
+    "paprika",
+    "cumin",
+    "lemon",
+    "lime",
+    "soy sauce",
+    "ginger",
+    "spinach",
+    "mushrooms",
+    "carrots",
+    "beans",
+    "yogurt",
+    "honey",
+    "walnuts",
 ]
 CLUSTER_TAGS = [
-    "chicken", "beef", "pork", "seafood", "vegetarian", "pasta",
-    "desserts", "soups-stews", "salads", "breakfast", "mexican", "asian",
+    "chicken",
+    "beef",
+    "pork",
+    "seafood",
+    "vegetarian",
+    "pasta",
+    "desserts",
+    "soups-stews",
+    "salads",
+    "breakfast",
+    "mexican",
+    "asian",
 ]
 BASE_TAGS = ["30-minutes-or-less", "easy", "main-dish", "weeknight", "healthy", "comfort-food"]
 VERBS = ["Grilled", "Baked", "Creamy", "Spicy", "Classic", "Quick", "Rustic", "Golden", "Zesty"]
@@ -64,7 +105,7 @@ def _recipe_rows(rng: np.random.Generator, n_recipes: int, n_clusters: int):
                 "minutes": int(rng.integers(5, 180)),
                 "contributor_id": int(rng.integers(1000, 99_999)),
                 "submitted": f"20{rng.integers(5, 18):02d}-{rng.integers(1, 13):02d}-"
-                             f"{rng.integers(1, 29):02d}",
+                f"{rng.integers(1, 29):02d}",
                 "tags": repr(tags),
                 "nutrition": repr(nutrition),
                 "n_steps": n_steps,
@@ -171,8 +212,14 @@ def generate(
     # Ground truth, so the verification script can check that `similar()` stays
     # inside the planted cluster.
     truth_path = out_dir / "ground_truth.npz"
-    np.savez(truth_path, recipe_ids=recipe_ids, clusters=clusters, user_ids=user_ids,
-             primary=primary, secondary=np.where(has_secondary, secondary, -1))
+    np.savez(
+        truth_path,
+        recipe_ids=recipe_ids,
+        clusters=clusters,
+        user_ids=user_ids,
+        primary=primary,
+        secondary=np.where(has_secondary, secondary, -1),
+    )
 
     summary = {
         "users": n_users,

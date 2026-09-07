@@ -130,7 +130,9 @@ class Splits:
             strong_users = payload["strong_users"].astype(np.int64)
         meta_path = path.with_suffix(".meta.json")
         meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
-        return cls(seed=seed, weak_users=weak_users, strong_users=strong_users, meta=meta, **matrices)
+        return cls(
+            seed=seed, weak_users=weak_users, strong_users=strong_users, meta=meta, **matrices
+        )
 
 
 def _split_counts(n: int, test_fraction: float, val_fraction: float) -> tuple[int, int, int]:

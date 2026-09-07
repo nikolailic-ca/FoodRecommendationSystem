@@ -65,8 +65,15 @@ def default_layers(mlp_dim: int) -> tuple[int, ...]:
 
 
 class NeuMFNet(nn.Module):
-    def __init__(self, n_users: int, n_items: int, gmf_dim: int = 32, mlp_dim: int = 32,
-                 layers: tuple[int, ...] | None = None, dropout: float = 0.0) -> None:
+    def __init__(
+        self,
+        n_users: int,
+        n_items: int,
+        gmf_dim: int = 32,
+        mlp_dim: int = 32,
+        layers: tuple[int, ...] | None = None,
+        dropout: float = 0.0,
+    ) -> None:
         super().__init__()
         layers = tuple(layers) if layers else default_layers(mlp_dim)
         self.gmf_user = nn.Embedding(n_users, gmf_dim)
@@ -102,11 +109,22 @@ class NeuMF(BaseModel):
     supports_strong = False
     score_batch_size = 32
 
-    def __init__(self, n_items: int, n_users: int = 0, gmf_dim: int = 8, mlp_dim: int = 8,
-                 layers: tuple[int, ...] | None = None, negatives: int = 4,
-                 lr: float = 1e-3, weight_decay: float = 0.0, dropout: float = 0.0,
-                 batch_size: int = 4096, max_epochs: int = 40,
-                 patience: int = 5, val_sample: int = 5000):
+    def __init__(
+        self,
+        n_items: int,
+        n_users: int = 0,
+        gmf_dim: int = 8,
+        mlp_dim: int = 8,
+        layers: tuple[int, ...] | None = None,
+        negatives: int = 4,
+        lr: float = 1e-3,
+        weight_decay: float = 0.0,
+        dropout: float = 0.0,
+        batch_size: int = 4096,
+        max_epochs: int = 40,
+        patience: int = 5,
+        val_sample: int = 5000,
+    ):
         super().__init__(n_items)
         self.n_users = int(n_users)
         self.gmf_dim = gmf_dim
@@ -138,15 +156,26 @@ class NeuMF(BaseModel):
             items[collision] = rng.integers(0, self.n_items, size=int(collision.sum()))
         return items
 
-    def fit(self, train, *, val_input=None, val_target=None, val_users=None,
-            seed=42, device="cpu", verbose=True, max_epochs=None):
+    def fit(
+        self,
+        train,
+        *,
+        val_input=None,
+        val_target=None,
+        val_users=None,
+        seed=42,
+        device="cpu",
+        verbose=True,
+        max_epochs=None,
+    ):
         torch.manual_seed(seed)
         binary = as_binary_csr(train)
         self.n_users = int(binary.shape[0])
         device = torch.device(device) if isinstance(device, str) else device
         self.device = device
-        self.net = NeuMFNet(self.n_users, self.n_items, self.gmf_dim, self.mlp_dim,
-                            self.layers, self.dropout).to(device)
+        self.net = NeuMFNet(
+            self.n_users, self.n_items, self.gmf_dim, self.mlp_dim, self.layers, self.dropout
+        ).to(device)
         optimiser = torch.optim.Adam(
             self.net.parameters(), lr=self.lr, weight_decay=self.weight_decay
         )
@@ -216,8 +245,9 @@ class NeuMF(BaseModel):
                 if metrics["ndcg@20"] > best_score + 1e-6:
                     best_score = metrics["ndcg@20"]
                     best_epoch = epoch
-                    best_state = {k: v.detach().cpu().clone()
-                                  for k, v in self.net.state_dict().items()}
+                    best_state = {
+                        k: v.detach().cpu().clone() for k, v in self.net.state_dict().items()
+                    }
                     stale = 0
                 else:
                     stale += 1
@@ -304,8 +334,9 @@ class NeuMF(BaseModel):
             max_epochs=hyper.get("max_epochs", 30),
             patience=hyper.get("patience", 3),
         )
-        model.net = NeuMFNet(n_users, meta["n_items"], model.gmf_dim, model.mlp_dim,
-                             model.layers, model.dropout)
+        model.net = NeuMFNet(
+            n_users, meta["n_items"], model.gmf_dim, model.mlp_dim, model.layers, model.dropout
+        )
         state = torch.load(directory / "model.pt", map_location="cpu", weights_only=True)
         model.net.load_state_dict(state)
         model.net.eval()

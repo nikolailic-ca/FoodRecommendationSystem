@@ -261,8 +261,10 @@ def _smoke(artifact_dir: Path, repeats: int = 200, seed: int = 42) -> int:
         print("  Pokrenite: uv run python -m foodrec.train --model multvae --full")
         return 1
 
-    print(f"  ucitavanje: {load_seconds * 1000:.0f} ms, {recommender.n_items:,} recepata, "
-          f"latent={recommender.latent}")
+    print(
+        f"  ucitavanje: {load_seconds * 1000:.0f} ms, {recommender.n_items:,} recepata, "
+        f"latent={recommender.latent}"
+    )
     print(f"  torch ucitan u procesu: {'torch' in sys.modules}")
 
     rng = np.random.default_rng(seed)
@@ -286,8 +288,10 @@ def _smoke(artifact_dir: Path, repeats: int = 200, seed: int = 42) -> int:
     print("-" * 68)
     print("  top 10 preporuka:")
     for item in recommender.recommend(history, n=10):
-        print(f"    #{item['rank']:<3} recept {item['recipe_id']:<10} "
-              f"score={item['score']:8.3f}  match={item['match_percent']}%")
+        print(
+            f"    #{item['rank']:<3} recept {item['recipe_id']:<10} "
+            f"score={item['score']:8.3f}  match={item['match_percent']}%"
+        )
 
     print("-" * 68)
     print(f"  similar({history[0]}, 5):")
@@ -298,8 +302,10 @@ def _smoke(artifact_dir: Path, repeats: int = 200, seed: int = 42) -> int:
     top = recommender.recommend(history, n=1)
     if top:
         because, similarity = recommender.explain(top[0]["recipe_id"], history)
-        print(f"  explain({top[0]['recipe_id']}, istorija) -> recept {because}, "
-              f"slicnost {similarity:.4f}")
+        print(
+            f"  explain({top[0]['recipe_id']}, istorija) -> recept {because}, "
+            f"slicnost {similarity:.4f}"
+        )
         if because is None or because not in history:
             print("  GRESKA: objasnjenje ne pokazuje na ocenjeni recept.")
             return 1

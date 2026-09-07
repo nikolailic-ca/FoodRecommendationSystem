@@ -44,8 +44,14 @@ from foodrec.models.base import BaseModel, as_binary_csr
 class MultVAENet(nn.Module):
     """Encoder/decoder pair.  Layer names are part of the export contract."""
 
-    def __init__(self, n_items: int, hidden: int = 600, latent: int = 200,
-                 dropout: float = 0.5, variational: bool = True) -> None:
+    def __init__(
+        self,
+        n_items: int,
+        hidden: int = 600,
+        latent: int = 200,
+        dropout: float = 0.5,
+        variational: bool = True,
+    ) -> None:
         super().__init__()
         self.n_items = n_items
         self.hidden = hidden
@@ -109,11 +115,22 @@ class MultVAE(BaseModel):
     supports_strong = True
     score_batch_size = 500
 
-    def __init__(self, n_items: int, variational: bool = True, hidden: int = 600,
-                 latent: int = 400, dropout: float = 0.5, lr: float = 1e-3,
-                 weight_decay: float | None = None, batch_size: int = 500,
-                 max_epochs: int = 120, patience: int = 15, beta: float = 0.2,
-                 anneal_epochs: int = 20, val_sample: int = 10000):
+    def __init__(
+        self,
+        n_items: int,
+        variational: bool = True,
+        hidden: int = 600,
+        latent: int = 400,
+        dropout: float = 0.5,
+        lr: float = 1e-3,
+        weight_decay: float | None = None,
+        batch_size: int = 500,
+        max_epochs: int = 120,
+        patience: int = 15,
+        beta: float = 0.2,
+        anneal_epochs: int = 20,
+        val_sample: int = 10000,
+    ):
         super().__init__(n_items)
         self.variational = variational
         if not variational:
@@ -124,7 +141,9 @@ class MultVAE(BaseModel):
         self.dropout = dropout
         self.lr = lr
         # weight decay 1e-4 for the DAE (no KL term to regularise it), 0 for the VAE
-        self.weight_decay = (1e-4 if not variational else 0.0) if weight_decay is None else weight_decay
+        self.weight_decay = (
+            (1e-4 if not variational else 0.0) if weight_decay is None else weight_decay
+        )
         self.batch_size = batch_size
         self.max_epochs = max_epochs
         self.patience = patience
@@ -140,8 +159,18 @@ class MultVAE(BaseModel):
         net = MultVAENet(self.n_items, self.hidden, self.latent, self.dropout, self.variational)
         return net.to(device)
 
-    def fit(self, train, *, val_input=None, val_target=None, val_users=None,
-            seed=42, device="cpu", verbose=True, max_epochs=None):
+    def fit(
+        self,
+        train,
+        *,
+        val_input=None,
+        val_target=None,
+        val_users=None,
+        seed=42,
+        device="cpu",
+        verbose=True,
+        max_epochs=None,
+    ):
         torch.manual_seed(seed)
         binary = as_binary_csr(train)
         device = torch.device(device) if isinstance(device, str) else device
@@ -183,7 +212,9 @@ class MultVAE(BaseModel):
                 dense = _normalise(binary[rows].toarray().astype(np.float32))
                 x = torch.from_numpy(dense).to(device)
 
-                beta_t = min(self.beta, self.beta * step / anneal_steps) if self.variational else 0.0
+                beta_t = (
+                    min(self.beta, self.beta * step / anneal_steps) if self.variational else 0.0
+                )
                 logits, kl = self.net(x)
                 neg_ll = -torch.mean(torch.sum(F.log_softmax(logits, dim=1) * x, dim=1))
                 loss = neg_ll + beta_t * kl
@@ -195,8 +226,11 @@ class MultVAE(BaseModel):
                 step += 1
 
             epoch_loss /= max(1, order.shape[0])
-            record = {"epoch": epoch, "loss": round(epoch_loss, 5),
-                      "beta": round(min(self.beta, self.beta * step / anneal_steps), 5)}
+            record = {
+                "epoch": epoch,
+                "loss": round(epoch_loss, 5),
+                "beta": round(min(self.beta, self.beta * step / anneal_steps), 5),
+            }
 
             if do_validation:
                 metrics = evaluate_ranking(
@@ -213,7 +247,9 @@ class MultVAE(BaseModel):
                 if score > best_score + 1e-6:
                     best_score = score
                     best_epoch = epoch
-                    best_state = {k: v.detach().cpu().clone() for k, v in self.net.state_dict().items()}
+                    best_state = {
+                        k: v.detach().cpu().clone() for k, v in self.net.state_dict().items()
+                    }
                     stale = 0
                 elif self.variational and epoch <= self.anneal_epochs:
                     # Do not count the KL annealing phase towards patience.  While
@@ -228,7 +264,11 @@ class MultVAE(BaseModel):
             self.history.append(record)
 
             if verbose:
-                suffix = f"  val NDCG@20={record.get('val_ndcg@20', float('nan')):.4f}" if do_validation else ""
+                suffix = (
+                    f"  val NDCG@20={record.get('val_ndcg@20', float('nan')):.4f}"
+                    if do_validation
+                    else ""
+                )
                 print(f"    epoha {epoch:>3}/{total_epochs}  loss={epoch_loss:8.3f}{suffix}")
 
             if do_validation and stale >= self.patience:
