@@ -15,11 +15,23 @@ export function getToken(): string | null {
   }
 }
 
+/** Message shown when the browser refuses to keep the session. */
+export const STORAGE_BLOCKED_MESSAGE =
+  'Your browser is blocking site data, so we cannot keep you signed in. Allow cookies and site data for this page, or leave private browsing, and try again.'
+
+/**
+ * Throws when the write fails.
+ *
+ * Swallowing it is worse than it looks: with no token stored, the very next
+ * request comes back 401, the response interceptor clears and redirects to
+ * `/login`, and the user loops through the same form forever with nothing on
+ * screen to explain why. The callers turn this into the message above.
+ */
 export function setToken(token: string): void {
   try {
     localStorage.setItem(TOKEN_KEY, token)
-  } catch {
-    // Nothing sensible to do: the session simply will not survive a reload.
+  } catch (cause) {
+    throw new Error(STORAGE_BLOCKED_MESSAGE, { cause })
   }
 }
 

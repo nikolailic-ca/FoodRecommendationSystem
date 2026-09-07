@@ -7,7 +7,7 @@ import { register } from '@/api/auth'
 import { getErrorMessage } from '@/api/client'
 import { AuthField } from '@/components/auth/AuthField'
 import { AuthLayout } from '@/components/layout/AuthLayout'
-import { setToken } from '@/lib/auth'
+import { setToken, STORAGE_BLOCKED_MESSAGE } from '@/lib/auth'
 import { queryKeys } from '@/lib/queryKeys'
 
 const MIN_PASSWORD_LENGTH = 8
@@ -33,7 +33,18 @@ function Register() {
   const mutation = useMutation({
     mutationFn: () => register({ username, email, password }),
     onSuccess: (data) => {
-      setToken(data.access_token)
+      try {
+        setToken(data.access_token)
+      } catch {
+        // The account exists at this point, so "try again" would only collide
+        // with the username it just took. Say what actually happened instead.
+        setLocalError(
+          `${STORAGE_BLOCKED_MESSAGE} Your account was created — sign in once you have.`,
+        )
+
+        return
+      }
+
       queryClient.clear()
       // The response already carries the user, so the onboarding guard does not
       // have to wait for a `GET /users/me` before it can decide.
