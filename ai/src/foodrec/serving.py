@@ -29,8 +29,8 @@ import numpy as np
 
 from foodrec.index import IndexMapping
 
-# Mirrors backend/app/services/recommender.py so the smoke test shows the badge
-# the API would actually return.
+# Kept in sync by hand with backend/app/services/recommender.py, which owns the
+# canonical copy, so the smoke test shows the badge the API would actually return.
 MATCH_TOP_K = 200
 MATCH_MIN = 60
 MATCH_MAX = 99
@@ -205,17 +205,34 @@ class Recommender:
 
     @staticmethod
     def match_percent(sorted_scores: np.ndarray, positions) -> list[int]:
-        """Min-max normalisation over the top-200 window into 60-99 (backend parity)."""
-        window = np.asarray(sorted_scores)[:MATCH_TOP_K]
-        window = window[np.isfinite(window)]
+        """Min-max normalisation over the top-200 window into 60-99.
+
+        Deliberately identical to `match_percent_from_scores` in
+        backend/app/services/recommender.py, down to the edge cases: the window is
+        a positional PREFIX truncated to the number of finite scores (not a
+        filtered slice, which would pull later finite values in and move `low`),
+        and the tail cutoff compares the rank against that finite count (not
+        against the full array length, which would compute a share from a -inf
+        score).  Excluded items carry -inf and sort to the end.
+
+        The two implementations are kept in sync by hand; this is the copy that
+        the smoke test exercises, and the backend owns the canonical one.
+        """
+        sorted_scores = np.asarray(sorted_scores)
         positions = list(positions)
+        # Finite values are a prefix of the array (argsort keeps them ahead of
+        # -inf and NaN), so a prefix slice is enough.
+        candidates = int(np.isfinite(sorted_scores).sum())
+        window = sorted_scores[: min(MATCH_TOP_K, candidates)]
         if window.size == 0:
             return [MATCH_TAIL for _ in positions]
+
         high, low = float(window[0]), float(window[-1])
         span = high - low
+
         result: list[int] = []
         for rank in positions:
-            if rank >= MATCH_TOP_K or rank >= len(sorted_scores):
+            if rank >= MATCH_TOP_K or rank >= candidates:
                 result.append(MATCH_TAIL)
             elif span <= 0:
                 result.append(MATCH_MAX)
