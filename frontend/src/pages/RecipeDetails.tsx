@@ -50,11 +50,14 @@ function parseRecipeId(value: string | undefined): number | null {
  *
  * Ingredients and steps arrive as arrays from the API and are rendered as
  * arrays — there is no string parsing anywhere on this page.
+ *
+ * Everything below is per-recipe state: which tags are expanded, whether the
+ * description is unclamped, and — inside `CookingMode` — which ingredients and
+ * steps have been ticked off. The wrapper keys this component on the recipe id
+ * so React throws all of it away when the route changes; without that, a single
+ * route element reused across recipes shows one recipe's checkmarks on another.
  */
-function RecipeDetails() {
-  const { recipeId } = useParams()
-  const id = parseRecipeId(recipeId)
-
+function RecipeDetailsView({ id }: { id: number }) {
   const { data: recipe, error, isPending, isError, refetch } = useRecipe(id)
   const similar = useSimilar(id)
 
@@ -65,15 +68,6 @@ function RecipeDetails() {
   const [cooking, setCooking] = useState(false)
   const [allTags, setAllTags] = useState(false)
   const [fullDescription, setFullDescription] = useState(false)
-
-  if (id === null) {
-    return (
-      <ErrorState
-        title="Unknown recipe"
-        description="That link does not point at a recipe we know."
-      />
-    )
-  }
 
   if (isPending) {
     return <LoadingScreen fullscreen={false} label="Loading the recipe…" />
@@ -328,6 +322,26 @@ function RecipeDetails() {
       />
     </>
   )
+}
+
+/**
+ * Reads the recipe out of the URL and hands it to the page as a key, so that
+ * navigating from one recipe to another remounts rather than reuses the view.
+ */
+function RecipeDetails() {
+  const { recipeId } = useParams()
+  const id = parseRecipeId(recipeId)
+
+  if (id === null) {
+    return (
+      <ErrorState
+        title="Unknown recipe"
+        description="That link does not point at a recipe we know."
+      />
+    )
+  }
+
+  return <RecipeDetailsView key={id} id={id} />
 }
 
 export default RecipeDetails

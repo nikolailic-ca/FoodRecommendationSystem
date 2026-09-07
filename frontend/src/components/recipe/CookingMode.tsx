@@ -119,6 +119,12 @@ function StepList({ steps, done, onToggle }: StepListProps) {
  * awake for as long as the dialog is open. Below `lg` the two lists share the
  * width through tabs; above it they sit side by side, so a laptop on the
  * counter shows everything at once.
+ *
+ * What has been ticked is keyed by list index and lives for as long as this
+ * component is mounted, which makes it state *about one recipe*. Callers must
+ * therefore mount one instance per recipe — `RecipeDetails` keys its whole page
+ * on the recipe id — or the same indices carry over and strike through the
+ * wrong lines.
  */
 export function CookingMode({
   open,
