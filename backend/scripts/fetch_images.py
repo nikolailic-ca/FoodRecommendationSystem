@@ -183,21 +183,34 @@ def search_photo(query: str, api_key: str, timeout: float = 25.0) -> Photo | Non
     )
 
 
-def search_with_retries(query: str, api_key: str, attempts: int = 3) -> Photo | None:
-    """Retries transient failures; a rate limit is waited out, not counted."""
-    for attempt in range(1, attempts + 1):
+def search_with_retries(
+    query: str, api_key: str, attempts: int = 3, rate_limit_waits: int = 5
+) -> Photo | None:
+    """Retries transient failures; a rate limit is waited out, not counted.
+
+    A 429 costs no retry: waiting is the correct response to it, and spending an
+    attempt on it meant three rate limits in a row exhausted the budget without
+    a single real error and the recipe was recorded as failed. `rate_limit_waits`
+    only stops the loop from waiting forever.
+    """
+    attempt = 0
+    waits = 0
+    while True:
         try:
             return search_photo(query, api_key)
         except RateLimited as exc:
+            waits += 1
+            if waits > rate_limit_waits:
+                raise
             print(f"    limit dostignut, pauza {exc.retry_after:.0f}s", flush=True)
             time.sleep(exc.retry_after)
         except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError) as exc:
-            if attempt == attempts:
+            attempt += 1
+            if attempt >= attempts:
                 raise
             backoff = 2.0**attempt
             print(f"    greska ({exc}); ponovo za {backoff:.0f}s", flush=True)
             time.sleep(backoff)
-    return None
 
 
 def select_targets(
@@ -298,6 +311,13 @@ def main() -> int:
         print(f"Procenjeno trajanje: {estimate:.0f} min. Prekid je bezbedan, nastavak radi.\n")
 
         for index, (recipe_id, name) in enumerate(targets, start=1):
+            # Pacing ide na POCETAK petlje, pre svakog poziva osim prvog. Kada je
+            # pauza stajala na kraju, `continue` iz except grane ju je preskakao,
+            # pa je skripta na gresku odgovarala tako sto je ubrzavala - i to bas
+            # kada je Pexels pod pritiskom.
+            if index > 1:
+                time.sleep(args.delay)
+
             query = build_query(name)
             if not query:
                 query = "food"
@@ -305,7 +325,11 @@ def main() -> int:
             try:
                 photo = search_with_retries(query, api_key)
                 if photo is None:
-                    # Second chance with a broader query.
+                    # Second chance with a broader query. To je JOS jedan poziv,
+                    # pa mora da potrosi svoj slot: bez ove pauze recept bez
+                    # pogotka salje dva zahteva u jednom intervalu i besplatni
+                    # limit od 200 na sat se probija.
+                    time.sleep(args.delay)
                     fallback = " ".join(query.split()[:2]) + " food"
                     photo = search_with_retries(fallback, api_key)
             except Exception as exc:  # noqa: BLE001 - one bad recipe must not stop the run
@@ -320,9 +344,6 @@ def main() -> int:
             else:
                 missing += 1
                 print(f"[{index}/{total}] {query!r} -> nema pogodaka", flush=True)
-
-            if index < total:
-                time.sleep(args.delay)
 
         with conn.cursor() as cur:
             cur.execute("SELECT count(*) FROM recipe_images WHERE url IS NOT NULL")
