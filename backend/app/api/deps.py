@@ -38,14 +38,15 @@ def get_current_user(db: DbSession, token: BearerToken) -> User:
 def get_current_user_optional(db: DbSession, token: BearerToken) -> User | None:
     """Opciona autentikacija: bez tokena vraca None.
 
-    Ako je token poslat ali je neispravan ili istekao, i dalje se vraca 401 -
-    frontend tako zna da mora da osvezi prijavu, umesto da tiho vidi
-    odjavljeni prikaz sa praznim ocenama.
+    Ako je token poslat ali je neispravan, istekao ili pripada obrisanom
+    korisniku, i dalje se vraca 401 - frontend tako zna da mora da osvezi
+    prijavu, umesto da tiho vidi odjavljeni prikaz sa praznim ocenama.
+    Provera ide kroz get_current_user da se dva puta ne bi opisivalo isto.
     """
     if not token:
         return None
 
-    return db.get(User, decode_access_token(token))
+    return get_current_user(db, token)
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]

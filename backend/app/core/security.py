@@ -14,8 +14,11 @@ from backend.app.core.config import settings
 
 JWT_ALGORITHM = "HS256"
 
-# bcrypt hesira najvise 72 bajta ulaza; sve preko toga se tiho ignorise,
-# pa lozinku secemo eksplicitno da bi hesiranje i provera radili isto.
+# bcrypt prima najvise 72 BAJTA ulaza i preko toga podize ValueError.
+# Registracija duze lozinke odbija (schemas/auth.py meri bajtove, ne karaktere),
+# pa se hesira uvek cela lozinka. Secenje ispod postoji samo zbog prijave, gde
+# OAuth2 form nema svoju validaciju: predugacak pokusaj tako uredno ne prolazi
+# umesto da obori zahtev na 500.
 BCRYPT_MAX_BYTES = 72
 
 # Zaglavlje koje klijentu govori da je u pitanju Bearer autentikacija.
