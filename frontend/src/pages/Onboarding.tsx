@@ -73,12 +73,53 @@ function Onboarding() {
   const combined = new Map([...saved, ...pending])
 
   const rated = Math.max(me.data?.ratings_count ?? 0, combined.size)
+
+  // Display only. The threshold itself lives in `settings.onboarding_min_ratings`
+  // on the server, so this number drives the copy and the progress bar and
+  // nothing else.
   const remaining = Math.max(0, MIN_ONBOARDING_RATINGS - rated)
-  const canContinue = remaining === 0
+
+  // The gate is the server's own answer, which is exactly what the route guard
+  // reads. Recomputing it here is how the button ends up enabled while the
+  // guard still says no and bounces the user straight back.
+  const canContinue = me.data?.onboarding_completed === true
+
+  function statusMessage(): string {
+    if (canContinue) {
+      return 'Keep rating to sharpen things, or continue.'
+    }
+
+    if (remaining > 0) {
+      return `Rate ${remaining} more to continue. You can add more later.`
+    }
+
+    return 'Saving your ratings…'
+  }
 
   function handleRate(recipeId: number, value: number) {
     setPending((previous) => new Map(previous).set(recipeId, value))
-    rate.mutate({ recipeId, rating: value })
+
+    rate.mutate(
+      { recipeId, rating: value },
+      {
+        // `useRateRecipe` cannot reach this map, so the rollback has to happen
+        // here: a rating that never reached the server must not keep a star
+        // filled or count towards the progress above.
+        onError: () => {
+          setPending((previous) => {
+            if (previous.get(recipeId) !== value) {
+              // Already superseded by a later click; leave that one alone.
+              return previous
+            }
+
+            const next = new Map(previous)
+            next.delete(recipeId)
+
+            return next
+          })
+        },
+      },
+    )
   }
 
   async function handleContinue() {
@@ -124,7 +165,15 @@ function Onboarding() {
           />
         ) : null}
 
-        {recipes.data ? (
+        {recipes.data?.length === 0 ? (
+          <ErrorState
+            title="No recipes to rate just yet"
+            description="The starter deck came back empty. That is usually momentary — try again."
+            onRetry={() => void recipes.refetch()}
+          />
+        ) : null}
+
+        {recipes.data && recipes.data.length > 0 ? (
           <RecipeGrid>
             {recipes.data.map((recipe) => (
               <RecipeCard
@@ -154,9 +203,7 @@ function Onboarding() {
           </div>
 
           <span className="text-[13.5px] font-medium text-muted-foreground">
-            {canContinue
-              ? 'Keep rating to sharpen things, or continue.'
-              : `Rate ${remaining} more to continue. You can add more later.`}
+            {statusMessage()}
           </span>
 
           <div className="hidden grow lg:block" />
