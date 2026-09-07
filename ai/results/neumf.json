@@ -1,0 +1,228 @@
+{
+  "model": "neumf",
+  "display_name": "NeuMF",
+  "seed": 42,
+  "git_commit": "e7e2272",
+  "dataset_stats": {
+    "datasets_dir": "/Users/dimitrijepavlovic/DzoniProjekat/FoodRecommendationSystem/datasets",
+    "n_interactions_raw": 1132367,
+    "n_interactions_in_catalog": 1132367,
+    "n_interactions_dedup": 1132367,
+    "n_catalog_recipes": 231637,
+    "n_rating_zero": 60847,
+    "rating_histogram": {
+      "0": 60847,
+      "1": 12818,
+      "2": 14123,
+      "3": 40855,
+      "4": 187360,
+      "5": 816364
+    },
+    "positive_threshold": 4,
+    "n_positives_before_kcore": 1003724,
+    "n_users_before_kcore": 180310,
+    "n_items_before_kcore": 217565,
+    "kcore": {
+      "min_user_positives": 3,
+      "min_item_positives": 5,
+      "iterations": 8,
+      "history": [
+        {
+          "iteration": 1,
+          "interactions": 1003724,
+          "users": 180310,
+          "items": 217565,
+          "dropped_users": 146902,
+          "dropped_items": 169640
+        },
+        {
+          "iteration": 2,
+          "interactions": 578371,
+          "users": 32955,
+          "items": 47764,
+          "dropped_users": 5711,
+          "dropped_items": 6935
+        },
+        {
+          "iteration": 3,
+          "interactions": 546096,
+          "users": 27231,
+          "items": 40829,
+          "dropped_users": 1103,
+          "dropped_items": 764
+        },
+        {
+          "iteration": 4,
+          "interactions": 540995,
+          "users": 26128,
+          "items": 40065,
+          "dropped_users": 139,
+          "dropped_items": 153
+        },
+        {
+          "iteration": 5,
+          "interactions": 540121,
+          "users": 25989,
+          "items": 39912,
+          "dropped_users": 26,
+          "dropped_items": 20
+        },
+        {
+          "iteration": 6,
+          "interactions": 539991,
+          "users": 25963,
+          "items": 39892,
+          "dropped_users": 4,
+          "dropped_items": 4
+        },
+        {
+          "iteration": 7,
+          "interactions": 539967,
+          "users": 25959,
+          "items": 39888,
+          "dropped_users": 0,
+          "dropped_items": 2
+        },
+        {
+          "iteration": 8,
+          "interactions": 539959,
+          "users": 25959,
+          "items": 39886,
+          "dropped_users": 0,
+          "dropped_items": 0
+        }
+      ]
+    },
+    "n_positives": 539959,
+    "n_users": 25959,
+    "n_items": 39886,
+    "density": 0.0005214976323262467,
+    "min_user_positives_final": 3,
+    "max_user_positives_final": 2765,
+    "mean_user_positives_final": 20.800454562964674,
+    "min_item_positives_final": 5,
+    "max_item_positives_final": 996,
+    "mean_item_positives_final": 13.537557037557038,
+    "build_seconds": 2.04
+  },
+  "split": {
+    "seed": 42,
+    "n_users": 25959,
+    "n_items": 39886,
+    "n_weak_users": 23363,
+    "n_strong_users": 2596,
+    "test_fraction": 0.2,
+    "val_fraction": 0.1,
+    "strong_user_fraction": 0.1,
+    "strong_fold_in_fraction": 0.8,
+    "nnz": {
+      "train": 328204,
+      "weak_val": 56651,
+      "weak_test": 99311,
+      "strong_input": 44356,
+      "strong_target": 11437
+    },
+    "check": {
+      "n_users": 25959,
+      "n_items": 39886,
+      "n_weak_users": 23363,
+      "n_strong_users": 2596,
+      "nnz": {
+        "train": 328204,
+        "weak_val": 56651,
+        "weak_test": 99311,
+        "strong_input": 44356,
+        "strong_target": 11437
+      },
+      "items_without_training_interaction": 98,
+      "items_without_training_interaction_pct": 0.2457,
+      "median_train_per_weak_user": 4.0
+    }
+  },
+  "hyperparams": {
+    "gmf_dim": 8,
+    "mlp_dim": 8,
+    "mlp_layers": [
+      16,
+      8,
+      8,
+      8
+    ],
+    "negatives_per_positive": 4,
+    "lr": 0.001,
+    "weight_decay": 0.0,
+    "dropout": 0.0,
+    "batch_size": 4096,
+    "max_epochs": 40,
+    "patience": 5,
+    "val_sample_users": 5000,
+    "pretraining": "none (simplification vs. He et al. 2017)",
+    "score_user_batch": 32
+  },
+  "best_epoch": 5,
+  "train_time_s": 58.62,
+  "score_ms_per_user": 0.5446,
+  "supports_strong": false,
+  "training_history": [
+    {
+      "epoch": 1,
+      "loss": 0.49641,
+      "val_ndcg@20": 0.016731
+    },
+    {
+      "epoch": 2,
+      "loss": 0.42558,
+      "val_ndcg@20": 0.01784
+    },
+    {
+      "epoch": 3,
+      "loss": 0.40668,
+      "val_ndcg@20": 0.018809
+    },
+    {
+      "epoch": 4,
+      "loss": 0.38585,
+      "val_ndcg@20": 0.019029
+    },
+    {
+      "epoch": 5,
+      "loss": 0.36576,
+      "val_ndcg@20": 0.019635
+    },
+    {
+      "epoch": 6,
+      "loss": 0.34591,
+      "val_ndcg@20": 0.018981
+    },
+    {
+      "epoch": 7,
+      "loss": 0.32667,
+      "val_ndcg@20": 0.019107
+    },
+    {
+      "epoch": 8,
+      "loss": 0.30899,
+      "val_ndcg@20": 0.017145
+    },
+    {
+      "epoch": 9,
+      "loss": 0.29427,
+      "val_ndcg@20": 0.017746
+    },
+    {
+      "epoch": 10,
+      "loss": 0.28188,
+      "val_ndcg@20": 0.017265
+    }
+  ],
+  "weak": {
+    "n_users": 23363,
+    "recall@10": 0.028062,
+    "ndcg@10": 0.016829,
+    "recall@20": 0.041926,
+    "ndcg@20": 0.020817,
+    "coverage@20": 0.011382,
+    "covered_items@20": 454
+  },
+  "strong": "N/A"
+}

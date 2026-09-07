@@ -1,0 +1,54 @@
+[project]
+name = "foodrec"
+version = "0.1.0"
+description = "Food recommendation system - backend, AI and ETL for the Food.com dataset"
+requires-python = ">=3.12,<3.15"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ai/src/foodrec"]
+
+[dependency-groups]
+backend = [
+    "fastapi",
+    "uvicorn[standard]",
+    "sqlalchemy>=2.0.40",
+    "alembic",
+    "psycopg[binary]>=3.2",
+    "pydantic-settings",
+    "pydantic[email]",
+    "bcrypt",
+    "pyjwt",
+    "python-multipart",
+    "httpx",
+    "numpy",
+]
+ai = [
+    "torch",
+    "numpy",
+    "scipy",
+    "pandas",
+    "scikit-learn",
+    "matplotlib",
+    "jupyter",
+    "notebook",
+    "ipykernel",
+    "nbstripout",
+]
+dev = [
+    "ruff",
+]
+
+[tool.uv]
+default-groups = ["backend", "dev"]
+
+[tool.ruff]
+# Istrazivacki notebook-i su sacuvani kao trag rada, ne kao kod koji se odrzava.
+# U njima su i greske koje rad opisuje kao nalaz, pa se ne ispravljaju.
+extend-exclude = ["ai/notebooks"]
+line-length = 100
+target-version = "py312"
